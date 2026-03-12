@@ -1,4 +1,18 @@
+# env files
 .env
 backend/.env
+backend/.env.local
 frontend/.env
 frontend/.env.local
+
+# virtual env
+venv/
+.venv/
+backend/venv/
+
+# python cache
+__pycache__/
+*.pyc
+
+# node
+node_modules/
