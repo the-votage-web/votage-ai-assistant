@@ -12,6 +12,7 @@ backend/venv/
 
 # python cache
 __pycache__/
+backend/app/__pycache__/
 *.pyc
 
 # node
