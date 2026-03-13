@@ -87,7 +87,11 @@ class PostgresRAGStore:
 
         return " AND " + " AND ".join(clauses), params
 
-    def get(self, where: dict[str, Any] | None = None, include: list[str] | None = None) -> dict[str, Any]:
+    def get(
+        self,
+        where: Optional[Dict[str, Any]] = None,
+        include: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
         extra_where, meta_params = self._metadata_where_clause(where)
         with self.engine.begin() as conn:
             rows = conn.execute(
