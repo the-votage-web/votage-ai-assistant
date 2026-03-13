@@ -6,9 +6,9 @@ frontend/.env
 frontend/.env.local
 
 # virtual env
-venv/
-.venv/
+backend/.venv/
 backend/venv/
+
 
 # python cache
 __pycache__/
