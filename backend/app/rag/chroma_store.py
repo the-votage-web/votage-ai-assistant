@@ -7,7 +7,8 @@ from langchain_core.documents import Document
 from sqlalchemy import create_engine, text
 
 from app.core.config import settings
-from typing import Optional, Any, Dict, Tuple, List
+from typing import Optional, Any, Dict, Tuple, List, Any
+
 
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9']+")
@@ -125,7 +126,12 @@ class PostgresRAGStore:
                     {"collection_name": self.collection_name, "id": raw_id},
                 )
 
-    def similarity_search(self, query: str, k: int = 4, filter: dict[str, Any] | None = None) -> list[Document]:
+    def similarity_search(
+        self,
+        query: str,
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         extra_where, meta_params = self._metadata_where_clause(filter)
         with self.engine.begin() as conn:
             rows = conn.execute(
