@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy import String, Date, DateTime, ForeignKey, UniqueConstraint, func, Text, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
- from typing import Optional
+from typing import Optional
 
 class Base(DeclarativeBase):
     pass
