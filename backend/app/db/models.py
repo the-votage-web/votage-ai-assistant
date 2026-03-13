@@ -53,7 +53,7 @@ class Attendance(Base):
     __tablename__ = "attendance"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("members.id"), nullable=False)
-    service_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
+    service_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
     service_type: Mapped[str] = mapped_column(String(32), nullable=False, default="sunday_service")
     connect_name: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     service_date: Mapped[str] = mapped_column(Date, nullable=False)
@@ -81,7 +81,7 @@ class FirstTimerEvent(Base):
     __tablename__ = "first_timer_events"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("members.id"), nullable=False)
-    service_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
+    service_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
     service_type: Mapped[str] = mapped_column(String(32), nullable=False, default="sunday_service")
     service_name: Mapped[str] = mapped_column(String(120), nullable=False)
     service_date: Mapped[str] = mapped_column(Date, nullable=False)
