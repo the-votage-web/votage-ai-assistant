@@ -3,6 +3,7 @@ from sqlalchemy import String, Date, DateTime, ForeignKey, UniqueConstraint, fun
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from typing import Optional
+from datetime import datetime
 
 class Base(DeclarativeBase):
     pass
