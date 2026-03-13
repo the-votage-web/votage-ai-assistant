@@ -22,7 +22,8 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-    if not inspector.has_table("first_timer_events"):
+
+    if "members" in inspector.get_table_names() and not inspector.has_table("first_timer_events"):
         op.create_table(
             "first_timer_events",
             sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
