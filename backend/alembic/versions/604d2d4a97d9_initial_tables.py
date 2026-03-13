@@ -1,5 +1,10 @@
 from sqlalchemy.dialects import postgresql
 
+revision = "604d2d4a97d9"
+down_revision = None
+branch_labels = None
+depends_on = None
+
 def upgrade() -> None:
 
     op.create_table(
