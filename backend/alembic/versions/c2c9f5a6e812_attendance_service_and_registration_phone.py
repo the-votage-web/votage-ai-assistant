@@ -17,40 +17,41 @@ down_revision: Union[str, None] = "9b2d8a1f4c21"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
-
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-	
-    attendance_cols = set() 
+
+    # --- ATTENDANCE TABLE ---
     if "attendance" in inspector.get_table_names():
-    	attendance_cols = {c["name"] for c in inspector.get_columns("attendance")}
-	if "service_type" not in attendance_cols:
-        	op.add_column(
-            	   "attendance",
-            	    sa.Column("service_type", sa.String(length=32), nullable=False, server_default="sunday_service"),
-        	)
-        op.alter_column("attendance", "service_type", server_default=None)
+        attendance_cols = {c["name"] for c in inspector.get_columns("attendance")}
+        if "service_type" not in attendance_cols:
+            op.add_column(
+                "attendance",
+                sa.Column("service_type", sa.String(length=32), nullable=False, server_default="sunday_service"),
+            )
+            op.alter_column("attendance", "service_type", server_default=None)
 
-    attendance_uq = {c["name"] for c in inspector.get_unique_constraints("attendance")}
-    if "uq_member_day_service" not in attendance_uq:
-        if "uq_member_day" in attendance_uq:
-            op.drop_constraint("uq_member_day", "attendance", type_="unique")
-        op.create_unique_constraint(
-            "uq_member_day_service",
-            "attendance",
-            ["member_id", "service_date", "service_type"],
-        )
+        attendance_uq = {c["name"] for c in inspector.get_unique_constraints("attendance")}
+        if "uq_member_day_service" not in attendance_uq:
+            if "uq_member_day" in attendance_uq:
+                op.drop_constraint("uq_member_day", "attendance", type_="unique")
+            op.create_unique_constraint(
+                "uq_member_day_service",
+                "attendance",
+                ["member_id", "service_date", "service_type"],
+            )
 
-    reg_cols = {c["name"] for c in inspector.get_columns("registrations")}
-    if "phone_number" not in reg_cols:
-        op.add_column("registrations", sa.Column("phone_number", sa.String(length=32), nullable=True))
-        op.execute("UPDATE registrations SET phone_number = 'tmp-' || id::text WHERE phone_number IS NULL")
-        op.alter_column("registrations", "phone_number", nullable=False)
+    # --- REGISTRATIONS TABLE ---
+    if "registrations" in inspector.get_table_names():
+        reg_cols = {c["name"] for c in inspector.get_columns("registrations")}
+        if "phone_number" not in reg_cols:
+            op.add_column("registrations", sa.Column("phone_number", sa.String(length=32), nullable=True))
+            op.execute("UPDATE registrations SET phone_number = 'tmp-' || id::text WHERE phone_number IS NULL")
+            op.alter_column("registrations", "phone_number", nullable=False)
 
-    reg_uq = {c["name"] for c in inspector.get_unique_constraints("registrations")}
-    if "uq_registrations_phone_number" not in reg_uq and "phone_number" in {c["name"] for c in inspector.get_columns("registrations")}:
-        op.create_unique_constraint("uq_registrations_phone_number", "registrations", ["phone_number"])
+        reg_uq = {c["name"] for c in inspector.get_unique_constraints("registrations")}
+        if "uq_registrations_phone_number" not in reg_uq and "phone_number" in {c["name"] for c in inspector.get_columns("registrations")}:
+            op.create_unique_constraint("uq_registrations_phone_number", "registrations", ["phone_number"])
 
 
 def downgrade() -> None:
