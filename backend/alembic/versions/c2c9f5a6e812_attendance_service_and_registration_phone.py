@@ -21,13 +21,15 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     bind = op.get_bind()
     inspector = sa.inspect(bind)
-
-    attendance_cols = {c["name"] for c in inspector.get_columns("attendance")}
-    if "service_type" not in attendance_cols:
-        op.add_column(
-            "attendance",
-            sa.Column("service_type", sa.String(length=32), nullable=False, server_default="sunday_service"),
-        )
+	
+    attendance_cols = set() 
+    if "attendance" in inspector.get_table_names():
+    	attendance_cols = {c["name"] for c in inspector.get_columns("attendance")}
+	if "service_type" not in attendance_cols:
+        	op.add_column(
+            	   "attendance",
+            	    sa.Column("service_type", sa.String(length=32), nullable=False, server_default="sunday_service"),
+        	)
         op.alter_column("attendance", "service_type", server_default=None)
 
     attendance_uq = {c["name"] for c in inspector.get_unique_constraints("attendance")}
