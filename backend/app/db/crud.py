@@ -5,6 +5,7 @@ from sqlalchemy import func, inspect
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 from app.db import models
+from typing import Optional, List, Dict, Any
 
 
 def get_or_create_session(db: Session, session_id: str) -> models.ChatSession:
@@ -83,7 +84,7 @@ def create_member_registration(
     first_timer: bool,
     gender: str,
     marital_status: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None,
     email: str = "",
 ):
     member = models.Member(
@@ -109,7 +110,7 @@ def get_or_create_connect_group(
     description: str = "Auto-created from registration",
     meeting_time: str = "TBD",
     meeting_day: str = "TBD",
-    service_id: UUID | None = None,
+    service_id: Optional[UUID] = None
 ):
     normalized = name.strip()
     if not normalized:
@@ -143,7 +144,7 @@ def get_or_create_connect_group(
 def get_or_create_service(
     db: Session,
     service_type: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None
 ):
     normalized_service = service_type.strip().lower()
     row = (
@@ -172,7 +173,7 @@ def get_or_create_service(
 def ensure_service_records_for_registration(
     db: Session,
     service_type: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None
 ):
     # Ensure connect group exists first where applicable, then ensure service row exists.
     return get_or_create_service(db, service_type=service_type, connect_name=connect_name)
@@ -260,7 +261,7 @@ def has_member_attended_service_before(
     db: Session,
     member_id,
     service_type: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None
 ):
     if not inspect(db.bind).has_table("attendance"):
         return False
@@ -289,7 +290,7 @@ def has_first_timer_event_for_member_today(
     db: Session,
     member_id,
     service_type: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None
 ):
     if not inspect(db.bind).has_table("first_timer_events"):
         return False
@@ -339,7 +340,7 @@ def mark_first_timer_event(
     db: Session,
     member_id,
     service_type: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None
 ):
     today = date.today()
     normalized_service = service_type.strip().lower()
@@ -407,7 +408,7 @@ def create_connect_group(
     description: str,
     meeting_time: str,
     meeting_day: str,
-    service_id: UUID | None = None,
+    service_id: Optional[UUID] = None,
 ):
     row = models.ConnectGroup(
         service_id=service_id,
@@ -444,8 +445,8 @@ def find_service_by_id(db: Session, service_id: UUID):
 def create_service(
     db: Session,
     name: str,
-    theme: str | None = None,
-    location: str | None = None,
+    theme: Optional[str] = None,
+    location: Optional[str] = None
 ):
     row = models.Service(
         name=name.strip(),
@@ -477,7 +478,7 @@ def register_member_with_attendance_transaction(
     gender: str,
     marital_status: str,
     service_type: str,
-    connect_name: str | None = None,
+    connect_name: Optional[str] = None
 ):
     db_inspector = inspect(db.bind)
     required_tables = ["members", "service", "connect_group", "attendance", "first_timer_events"]
