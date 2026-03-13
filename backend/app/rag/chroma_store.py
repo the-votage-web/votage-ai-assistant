@@ -7,7 +7,7 @@ from langchain_core.documents import Document
 from sqlalchemy import create_engine, text
 
 from app.core.config import settings
-from typing import Optional, Any, Dict, Tuple
+from typing import Optional, Any, Dict, Tuple, List
 
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9']+")
