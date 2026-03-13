@@ -46,7 +46,7 @@ class ConnectGroupMember(Base):
     connect_group_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("connect_group.id"), nullable=False)
     member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("members.id"), nullable=False)
     created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    left_at: Mapped[str | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    left_at:Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
 class Attendance(Base):
     __tablename__ = "attendance"
