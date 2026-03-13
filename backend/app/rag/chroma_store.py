@@ -7,6 +7,7 @@ from langchain_core.documents import Document
 from sqlalchemy import create_engine, text
 
 from app.core.config import settings
+from typing import Optional, Any, Dict, Tuple
 
 
 _TOKEN_RE = re.compile(r"[a-zA-Z0-9']+")
@@ -72,7 +73,8 @@ class PostgresRAGStore:
                     },
                 )
 
-    def _metadata_where_clause(self, where: dict[str, Any] | None) -> tuple[str, dict[str, Any]]:
+    
+    def _metadata_where_clause(self, where: Optional[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
         if not where:
             return "", {}
 
