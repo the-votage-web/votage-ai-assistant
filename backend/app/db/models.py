@@ -15,10 +15,10 @@ class Member(Base):
     phone_number: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     email: Mapped[Optional[str]] = mapped_column(String(254), unique=True, nullable=True)
     created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    gender: Mapped[Optional[str | None]] = mapped_column(String(32), nullable=True)
-    marital_status: Mapped[Optional[str | None]] = mapped_column(String(32), nullable=True)
+    gender: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    marital_status: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     first_timer: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    connect_name: Mapped[Optional[str | None]] = mapped_column(String(80), nullable=True)
+    connect_name: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     date_joined: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -33,7 +33,7 @@ class Service(Base):
 class ConnectGroup(Base):
     __tablename__ = "connect_group"
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    service_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
+    service_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
     name: Mapped[str] = mapped_column(String(80), nullable=False)
     description: Mapped[str] = mapped_column(String(254), nullable=False)
     meeting_time: Mapped[str] = mapped_column(String(80), nullable=False)
@@ -54,7 +54,7 @@ class Attendance(Base):
     member_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("members.id"), nullable=False)
     service_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("service.id"), nullable=True)
     service_type: Mapped[str] = mapped_column(String(32), nullable=False, default="sunday_service")
-    connect_name: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    connect_name: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
     service_date: Mapped[str] = mapped_column(Date, nullable=False)
     created_at: Mapped[str] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
