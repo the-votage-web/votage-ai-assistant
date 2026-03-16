@@ -18,7 +18,7 @@ const DEFAULT_SERVICE_OPTIONS = ["sunday_service", "connect", "special_service"]
 
 export default function RegisterPage() {
   const router = useRouter();
-  const base = process.env.NEXT_PUBLIC_API_BASE!;
+  const base = process.env.NEXT_PUBLIC_API_BASE || "";
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [serviceOptions, setServiceOptions] = useState<string[]>(DEFAULT_SERVICE_OPTIONS);
@@ -38,7 +38,8 @@ export default function RegisterPage() {
   useEffect(() => {
     async function loadOptions() {
       try {
-        const res = await fetch(`${base}/api/register/options`);
+        const url = base ? `${base}/api/register/options` : "/api/register/options";
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = (await res.json()) as {
           service_types?: string[];
@@ -77,7 +78,8 @@ export default function RegisterPage() {
         connect_name: showConnect ? connectName : null,
       };
 
-      const res = await fetch(`${base}/api/register`, {
+      const url = base ? `${base}/api/register` : "/api/register";
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

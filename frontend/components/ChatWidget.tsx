@@ -27,8 +27,9 @@ const CONNECT_TYPE_ACTIONS: QuickAction[] = [
 ];
 
 async function sendMessage(sessionId: string, message: string) {
-  const base = process.env.NEXT_PUBLIC_API_BASE!;
-  const res = await fetch(`${base}/api/chat`, {
+  const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  const url = base ? `${base}/api/chat` : "/api/chat";
+  const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ session_id: sessionId, message }),
