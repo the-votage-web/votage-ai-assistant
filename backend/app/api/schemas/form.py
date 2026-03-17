@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, StrictStr, field_validator, model_validator
 
 DEFAULT_SERVICE_TYPES = ["sunday_service", "connect", "special_service"]
 DEFAULT_CONNECT_GROUPS = [
@@ -15,10 +15,10 @@ DEFAULT_CONNECT_GROUPS = [
 
 
 class RegistrationIn(BaseModel):
-    phone_number: str
+    phone_number: StrictStr
     first_name: str
     last_name: str
-    email: str
+    email: StrictStr
     first_timer: bool = False
     gender: str
     marital_status: str
@@ -61,6 +61,20 @@ class RegistrationIn(BaseModel):
         v = value.strip().lower()
         if "@" not in v or "." not in v.split("@")[-1]:
             raise ValueError("email must be a valid email address")
+        return v
+
+    @field_validator("phone_number")
+    @classmethod
+    def _validate_phone_number(cls, value: str) -> str:
+        v = value.strip()
+        if v.startswith("+"):
+            digits = v[1:]
+        else:
+            digits = v
+        if not digits.isdigit():
+            raise ValueError("phone_number must contain only digits (optionally prefixed by '+')")
+        if len(digits) < 7 or len(digits) > 15:
+            raise ValueError("phone_number must be between 7 and 15 digits")
         return v
 
     @field_validator("marital_status")
