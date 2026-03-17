@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import styles from "./register.module.css";
@@ -67,11 +69,12 @@ export default function RegisterPage() {
     setNotice(null);
 
     try {
+      const normalizedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
       const payload = {
         first_name: firstName,
         last_name: lastName,
         email,
-        phone_number: phoneNumber,
+        phone_number: normalizedPhone,
         gender,
         marital_status: maritalStatus,
         service_type: serviceType,
@@ -198,12 +201,16 @@ export default function RegisterPage() {
 
             <label className={styles.field}>
               <span className={styles.label}>Phone number</span>
-              <input
-                required
+              <PhoneInput
+                country="ng"
                 value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="e.g. 08012345678"
-                className={styles.control}
+                onChange={(value) => setPhoneNumber(value)}
+                inputProps={{ required: true, name: "phone" }}
+                placeholder="e.g. +234 801 234 5678"
+                containerClass={styles.phoneContainer}
+                inputClass={styles.phoneInput}
+                buttonClass={styles.phoneButton}
+                dropdownClass={styles.phoneDropdown}
               />
             </label>
 
