@@ -6,6 +6,7 @@ import "react-phone-input-2/lib/style.css";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import styles from "./register.module.css";
+import ChatWidget from "@/components/ChatWidget";
 
 const DEFAULT_CONNECT_OPTIONS = [
   "KABOD CONNECT",
@@ -21,6 +22,7 @@ const DEFAULT_SERVICE_OPTIONS = ["sunday_service", "connect", "special_service"]
 export default function RegisterPage() {
   const router = useRouter();
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  const [activeTab, setActiveTab] = useState<"checkin" | "register">("checkin");
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [serviceOptions, setServiceOptions] = useState<string[]>(DEFAULT_SERVICE_OPTIONS);
@@ -156,128 +158,150 @@ export default function RegisterPage() {
         </Link>
 
         <header className={styles.hero}>
-          <h1 className={styles.title}>Church Registration</h1>
+          <h1 className={styles.title}>Check-in & Registration</h1>
           <p className={styles.subtitle}>
-            Fill in your details to register for service. This helps us welcome you properly and plan
-            each gathering smoothly.
+            Already a member? Use the <strong>Check-in</strong> tab to mark your attendance. New to our church? Use the <strong>Registration</strong> tab.
           </p>
         </header>
 
-        <section className={styles.card}>
-          <form onSubmit={onSubmit} className={styles.form}>
-            <div className={styles.rowTwo}>
+        <nav className={styles.tabs}>
+          <button
+            onClick={() => setActiveTab("checkin")}
+            className={`${styles.tabButton} ${activeTab === "checkin" ? styles.tabButtonActive : ""}`}
+          >
+            Check-in
+          </button>
+          <button
+            onClick={() => setActiveTab("register")}
+            className={`${styles.tabButton} ${activeTab === "register" ? styles.tabButtonActive : ""}`}
+          >
+            New Member Registration
+          </button>
+        </nav>
+
+        <section className={styles.card} style={{ padding: activeTab === "checkin" ? 0 : 22, overflow: "hidden" }}>
+          {activeTab === "checkin" ? (
+            <ChatWidget
+              apiUrl="/api/checkin"
+              welcomeMessage="Hi! 👋 I'm here to help you check in for service.\n\nPlease type your phone number to get started (e.g. 08012345678)."
+              containerStyle={{ minHeight: "0px", padding: 0 }}
+            />
+          ) : (
+            <form onSubmit={onSubmit} className={styles.form}>
+              <div className={styles.rowTwo}>
+                <label className={styles.field}>
+                  <span className={styles.label}>First name</span>
+                  <input
+                    required
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className={styles.control}
+                  />
+                </label>
+
+                <label className={styles.field}>
+                  <span className={styles.label}>Last name</span>
+                  <input
+                    required
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    className={styles.control}
+                  />
+                </label>
+              </div>
+
               <label className={styles.field}>
-                <span className={styles.label}>First name</span>
+                <span className={styles.label}>Email</span>
                 <input
                   required
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="e.g. you@example.com"
                   className={styles.control}
                 />
               </label>
 
               <label className={styles.field}>
-                <span className={styles.label}>Last name</span>
-                <input
-                  required
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                  className={styles.control}
+                <span className={styles.label}>Phone number</span>
+                <PhoneInput
+                  country="ng"
+                  value={phoneNumber}
+                  onChange={(value) => setPhoneNumber(value)}
+                  inputProps={{ required: true, name: "phone" }}
+                  placeholder="e.g. +234 801 234 5678"
+                  containerClass={styles.phoneContainer}
+                  inputClass={styles.phoneInput}
+                  buttonClass={styles.phoneButton}
+                  dropdownClass={styles.phoneDropdown}
                 />
               </label>
-            </div>
 
-            <label className={styles.field}>
-              <span className={styles.label}>Email</span>
-              <input
-                required
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="e.g. you@example.com"
-                className={styles.control}
-              />
-            </label>
+              <div className={styles.rowTwo}>
+                <label className={styles.field}>
+                  <span className={styles.label}>Gender</span>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    className={styles.control}
+                  >
+                    <option value="male">Male</option>
+                    <option value="female">Female</option>
+                  </select>
+                </label>
 
-            <label className={styles.field}>
-              <span className={styles.label}>Phone number</span>
-              <PhoneInput
-                country="ng"
-                value={phoneNumber}
-                onChange={(value) => setPhoneNumber(value)}
-                inputProps={{ required: true, name: "phone" }}
-                placeholder="e.g. +234 801 234 5678"
-                containerClass={styles.phoneContainer}
-                inputClass={styles.phoneInput}
-                buttonClass={styles.phoneButton}
-                dropdownClass={styles.phoneDropdown}
-              />
-            </label>
-
-            <div className={styles.rowTwo}>
-              <label className={styles.field}>
-                <span className={styles.label}>Gender</span>
-                <select
-                  value={gender}
-                  onChange={(e) => setGender(e.target.value)}
-                  className={styles.control}
-                >
-                  <option value="male">Male</option>
-                  <option value="female">Female</option>
-                </select>
-              </label>
+                <label className={styles.field}>
+                  <span className={styles.label}>Marital status</span>
+                  <select
+                    value={maritalStatus}
+                    onChange={(e) => setMaritalStatus(e.target.value)}
+                    className={styles.control}
+                  >
+                    <option value="single">Single</option>
+                    <option value="married">Married</option>
+                    <option value="divorced">Divorced</option>
+                    <option value="widowed">Widowed</option>
+                  </select>
+                </label>
+              </div>
 
               <label className={styles.field}>
-                <span className={styles.label}>Marital status</span>
+                <span className={styles.label}>Service type</span>
                 <select
-                  value={maritalStatus}
-                  onChange={(e) => setMaritalStatus(e.target.value)}
+                  value={serviceType}
+                  onChange={(e) => setServiceType(e.target.value)}
                   className={styles.control}
                 >
-                  <option value="single">Single</option>
-                  <option value="married">Married</option>
-                  <option value="divorced">Divorced</option>
-                  <option value="widowed">Widowed</option>
-                </select>
-              </label>
-            </div>
-
-            <label className={styles.field}>
-              <span className={styles.label}>Service type</span>
-              <select
-                value={serviceType}
-                onChange={(e) => setServiceType(e.target.value)}
-                className={styles.control}
-              >
-                {serviceOptions.map((name) => (
-                  <option key={name} value={name}>
-                    {name}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            {showConnect && (
-              <label className={styles.field}>
-                <span className={styles.label}>Connect group</span>
-                <select
-                  value={connectName}
-                  onChange={(e) => setConnectName(e.target.value)}
-                  className={styles.control}
-                >
-                  {connectOptions.map((name) => (
+                  {serviceOptions.map((name) => (
                     <option key={name} value={name}>
                       {name}
                     </option>
                   ))}
                 </select>
               </label>
-            )}
 
-            <button type="submit" disabled={busy} className={styles.submitButton}>
-              {busy ? "Submitting..." : "Submit Registration"}
-            </button>
-          </form>
+              {showConnect && (
+                <label className={styles.field}>
+                  <span className={styles.label}>Connect group</span>
+                  <select
+                    value={connectName}
+                    onChange={(e) => setConnectName(e.target.value)}
+                    className={styles.control}
+                  >
+                    {connectOptions.map((name) => (
+                      <option key={name} value={name}>
+                        {name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              <button type="submit" disabled={busy} className={styles.submitButton}>
+                {busy ? "Submitting..." : "Submit Registration"}
+              </button>
+            </form>
+          )}
         </section>
       </div>
     </main>

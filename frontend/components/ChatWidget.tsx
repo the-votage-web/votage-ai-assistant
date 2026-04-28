@@ -5,11 +5,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Msg = { role: "user" | "ai"; text: string };
 type QuickAction = { label: string; message: string };
 const DEFAULT_WELCOME_MESSAGE =
-  "Hi 👋 I’m the church assistant.\n\nTap a quick action button below to get started (Check-in or FAQ).\n\n• To check in: send your phone number (e.g. 08012345678)\n• To ask: “What time is service?”";
+  "Hi 👋 I’m the church assistant. I'm here to help with any questions you have about our services and events.\n\nFor **Check-in** or **Registration**, please visit our [Registration Page](https://votage.church/register).\n\nYou can ask me things like: “What time is service?” or “How do I join a connect group?”";
 
 const QUICK_ACTIONS: QuickAction[] = [
-  { label: "Check-in", message: "I want to check in" },
-  { label: "FAQ", message: "start faq session" },
+  { label: "Start FAQ Session", message: "start faq session" },
 ];
 const SERVICE_TYPE_ACTIONS: QuickAction[] = [
   { label: "Sunday Service", message: "sunday_service" },
@@ -26,36 +25,72 @@ const CONNECT_TYPE_ACTIONS: QuickAction[] = [
   { label: "Ekehuan", message: "EKEHUAN CONNECT" },
 ];
 
-async function sendMessage(sessionId: string, message: string) {
-  const base = process.env.NEXT_PUBLIC_API_BASE || "";
-  const url = base ? `${base}/api/chat` : "/api/chat";
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_id: sessionId, message }),
-  });
-  if (!res.ok) throw new Error("Request failed");
-  return (await res.json()) as { reply: string };
-}
 
 function linkifyText(text: string) {
-  const urlRegex = /(https?:\/\/[^\s]+)/g;
-  return text.split(urlRegex).map((part, i) => {
-    if (/^https?:\/\/[^\s]+$/.test(part)) {
-      return (
+  // Regex to match [text](url) or raw http(s) URLs
+  const regex = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|https?:\/\/[^\s]+)/g;
+  
+  const parts = text.split(regex);
+  const result = [];
+  
+  // The split with capturing groups in the regex will result in:
+  // [normal text, full match, link text, link url, raw url, ...]
+  // We need to iterate carefully.
+  
+  let i = 0;
+  while (i < parts.length) {
+    const part = parts[i];
+    
+    if (part === undefined) {
+      i++;
+      continue;
+    }
+
+    // This is a bit tricky because split with multiple capturing groups
+    // includes all capturing groups in the output.
+    // Index mapping for our regex:
+    // i: normal text
+    // i+1: full markdown match (e.g. "[Link](url)")
+    // i+2: link text (e.g. "Link")
+    // i+3: link url (e.g. "url")
+    // i+4: raw url match (if not markdown)
+    
+    if (i + 1 < parts.length && parts[i+1]?.startsWith('[')) {
+      // Markdown link
+      result.push(
         <a
-          key={`${part}-${i}`}
-          href={part}
+          key={i}
+          href={parts[i+3]}
           target="_blank"
           rel="noopener noreferrer"
           style={{ color: "#0057b8", textDecoration: "underline" }}
         >
-          {part}
+          {parts[i+2]}
         </a>
       );
+      i += 4; // Skip the captured groups
+    } else if (i + 1 < parts.length && parts[i+1]?.startsWith('http')) {
+      // Raw URL (if our regex was different, but let's simplify)
+      result.push(
+        <a
+          key={i}
+          href={parts[i+1]}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: "#0057b8", textDecoration: "underline" }}
+        >
+          {parts[i+1]}
+        </a>
+      );
+      i += 4;
+    } else {
+      // Normal text
+      if (part) result.push(part);
+      i++;
     }
-    return part;
-  });
+  }
+  
+  return result;
 }
 
 function isServiceTypePrompt(text: string) {
@@ -75,11 +110,9 @@ function isWelcomePrompt(text: string) {
     normalized.includes("i’m the church assistant") ||
     normalized.includes("i'm the church assistant")
   ) && (
-    normalized.includes("check-in") ||
-    normalized.includes("to check in")
-  ) && (
     normalized.includes("faq") ||
-    normalized.includes("what time is service")
+    normalized.includes("what time is service") ||
+    normalized.includes("registration page")
   );
 }
 
@@ -98,19 +131,23 @@ function isConnectTypePrompt(text: string) {
   );
 }
 
-function isCheckinQuickAction(text: string) {
-  const normalized = text.toLowerCase().trim();
-  return normalized === "i want to check in" || normalized === "check-in" || normalized === "check in";
-}
 
-export default function ChatWidget() {
+export default function ChatWidget({
+  apiUrl = "/api/chat",
+  welcomeMessage = DEFAULT_WELCOME_MESSAGE,
+  containerStyle = {},
+}: {
+  apiUrl?: string;
+  welcomeMessage?: string;
+  containerStyle?: React.CSSProperties;
+}) {
   const sessionId = useMemo(() => crypto.randomUUID(), []);
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
   const [msgs, setMsgs] = useState<Msg[]>([
     {
       role: "ai",
-      text: DEFAULT_WELCOME_MESSAGE,
+      text: welcomeMessage,
     },
   ]);
 
@@ -126,14 +163,17 @@ export default function ChatWidget() {
     setInput("");
     setMsgs((m) => [...m, { role: "user", text }]);
 
-    if (isCheckinQuickAction(text)) {
-      setMsgs((m) => [...m, { role: "ai", text: "Please type your phone number." }]);
-      return;
-    }
-
     setBusy(true);
     try {
-      const { reply } = await sendMessage(sessionId, text);
+      const base = process.env.NEXT_PUBLIC_API_BASE || "";
+      const url = base ? `${base}${apiUrl}` : apiUrl;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message: text }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      const { reply } = (await res.json()) as { reply: string };
       setMsgs((m) => [...m, { role: "ai", text: reply }]);
     } catch {
       setMsgs((m) => [
@@ -152,9 +192,15 @@ export default function ChatWidget() {
   async function onEndSession() {
     if (busy) return;
     setInput("");
-    setMsgs([{ role: "ai", text: DEFAULT_WELCOME_MESSAGE }]);
+    setMsgs([{ role: "ai", text: welcomeMessage }]);
     try {
-      await sendMessage(sessionId, "end session");
+      const base = process.env.NEXT_PUBLIC_API_BASE || "";
+      const url = base ? `${base}${apiUrl}` : apiUrl;
+      await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_id: sessionId, message: "end session" }),
+      });
     } catch {
       // Ignore backend errors; UI has already been reset for a fresh start.
     }
@@ -172,6 +218,7 @@ export default function ChatWidget() {
         background: "linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)",
         padding: 16,
         boxSizing: "border-box",
+        ...containerStyle,
       }}
     >
       <style>{`

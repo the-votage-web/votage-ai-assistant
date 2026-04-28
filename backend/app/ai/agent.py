@@ -655,34 +655,81 @@ def upsert_member_vector(member_id: str, full_name: str, phone: str, aliases: st
     if hasattr(store, "persist"):
         store.persist()
 
-def handle_message(db: Session, session_id: str, message: str) -> str:
+def handle_faq(db: Session, session_id: str, message: str) -> str:
     chat_session = crud.get_or_create_session(db, session_id)
     state = _load_state(chat_session.state_json)
 
     if _is_end_session_message(message):
-        state.pop("pending_checkin_phone", None)
-        state.pop("pending_service_type", None)
         state.pop("faq_session", None)
         _save_state(db, chat_session, state)
-        return "Session ended. If you want to check in again, send your phone number."
+        return "Session ended. How else can I help you today?"
 
     if _is_faq_session_start_message(message):
         state["faq_session"] = True
-        state.pop("pending_checkin_phone", None)
-        state.pop("pending_service_type", None)
         _save_state(db, chat_session, state)
         return "FAQ session started. Ask me any church question."
 
     if _is_faq_session_end_message(message):
         state.pop("faq_session", None)
         _save_state(db, chat_session, state)
-        return _default_welcome_message()
+        return "I've closed the FAQ session. What else would you like to know?"
+
+    ex = extract(message)
+    faq_session = bool(state.get("faq_session"))
+
+    if faq_session:
+        return rag_answer_faq(ex.question or message)
+
+    if _is_greeting_message(message):
+        return (
+            "Hi 👋 I’m the church FAQ assistant. I'm here to help with any questions you have about our services and events.\n\n"
+            "You can ask me things like: “What time is service?” or “How do I join a connect group?”"
+        )
+
+    # FAQ
+    if ex.intent == "faq":
+        q = ex.question or message
+        return rag_answer_faq(q)
+
+    # First timer
+    if ex.intent == "first_timer":
+        return (
+            "👋 Welcome! Please register once here:\n"
+            f"{settings.REGISTRATION_PAGE_URL}"
+        )
+
+    # Update profile
+    if ex.intent == "update_profile":
+        return "To update your details, please contact an admin or fill the first-timer form again with your correct details."
+
+    # If they tried to check-in here, gently redirect them
+    if ex.intent == "checkin":
+        return (
+            "I'm sorry, I can only help with FAQ here. "
+            "For check-in, please visit our [Registration Page](https://votage.church/register)."
+        )
+
+    return (
+        "I’m not sure how to help with that. I'm here for FAQ and general info.\n\n"
+        "Try asking: “What time is service?”"
+    )
+
+
+def handle_checkin(db: Session, session_id: str, message: str) -> str:
+    chat_session = crud.get_or_create_session(db, session_id)
+    state = _load_state(chat_session.state_json)
+
+    if _is_end_session_message(message):
+        state.pop("pending_checkin_phone", None)
+        state.pop("pending_service_type", None)
+        _save_state(db, chat_session, state)
+        return "Check-in session ended."
 
     ex = extract(message)
     pending_phone = state.get("pending_checkin_phone")
     pending_service_type = state.get("pending_service_type")
-    faq_session = bool(state.get("faq_session"))
 
+    # 1. Continue existing check-in flow
     if pending_phone:
         if ex.phone:
             pending_phone = ex.phone
@@ -703,11 +750,10 @@ def handle_message(db: Session, session_id: str, message: str) -> str:
             if _is_successful_checkin_response(response):
                 state.pop("pending_checkin_phone", None)
                 state.pop("pending_service_type", None)
-                _save_state(db, chat_session, state)
             else:
                 state["pending_checkin_phone"] = pending_phone
                 state["pending_service_type"] = "connect"
-                _save_state(db, chat_session, state)
+            _save_state(db, chat_session, state)
             return response
 
         chosen_service_type = _extract_service_type(message, ex.service_type)
@@ -723,36 +769,13 @@ def handle_message(db: Session, session_id: str, message: str) -> str:
         if _is_successful_checkin_response(response):
             state.pop("pending_checkin_phone", None)
             state.pop("pending_service_type", None)
-            _save_state(db, chat_session, state)
         else:
             state["pending_checkin_phone"] = pending_phone
             state.pop("pending_service_type", None)
-            _save_state(db, chat_session, state)
+        _save_state(db, chat_session, state)
         return response
 
-    if faq_session:
-        if ex.intent in {"checkin", "first_timer", "update_profile"}:
-            state.pop("faq_session", None)
-            _save_state(db, chat_session, state)
-        else:
-            return rag_answer_faq(ex.question or message)
-
-    if _is_greeting_message(message):
-        return _default_welcome_message()
-
-    # FAQ
-    if ex.intent == "faq":
-        q = ex.question or message
-        return rag_answer_faq(q)
-
-    # First timer
-    if ex.intent == "first_timer":
-        return (
-            "👋 Welcome! Please register once here:\n"
-            f"{settings.REGISTRATION_PAGE_URL}"
-        )
-
-    # Check-in
+    # 2. Start new check-in flow
     if ex.intent == "checkin":
         # Optional MVP anti-fraud
         if settings.SUNDAY_CODE and ex.sunday_code and ex.sunday_code != settings.SUNDAY_CODE:
@@ -760,6 +783,7 @@ def handle_message(db: Session, session_id: str, message: str) -> str:
 
         phone = ex.phone
         service_type = _extract_service_type(message, ex.service_type)
+        
         # If user didn't provide phone, ask
         if not phone:
             # if they provided a name, try vector search suggestions
@@ -773,9 +797,7 @@ def handle_message(db: Session, session_id: str, message: str) -> str:
                         f"{preview}\n\n"
                         "Please send your phone number (e.g. 08012345678)."
                     )
-            return (
-                "Please send your phone number (e.g. 08012345678) to check in.\n"
-            )
+            return "Please send your phone number (e.g. 08012345678) to check in."
 
         if not service_type:
             state["pending_checkin_phone"] = phone
@@ -795,28 +817,23 @@ def handle_message(db: Session, session_id: str, message: str) -> str:
             if _is_successful_checkin_response(response):
                 state.pop("pending_checkin_phone", None)
                 state.pop("pending_service_type", None)
-                _save_state(db, chat_session, state)
             else:
                 state["pending_checkin_phone"] = phone
                 state["pending_service_type"] = "connect"
-                _save_state(db, chat_session, state)
+            _save_state(db, chat_session, state)
             return response
 
         response = _record_checkin(db, phone, service_type)
         if _is_successful_checkin_response(response):
             state.pop("pending_checkin_phone", None)
             state.pop("pending_service_type", None)
-            _save_state(db, chat_session, state)
         else:
             state["pending_checkin_phone"] = phone
             state.pop("pending_service_type", None)
-            _save_state(db, chat_session, state)
+        _save_state(db, chat_session, state)
         return response
 
-    # Update profile (MVP: ask them to contact admin or fill form)
-    if ex.intent == "update_profile":
-        return "To update your details, please contact an admin or fill the first-timer form again with your correct details."
-
     return (
-        _default_welcome_message()
+        "Hi 👋 I'm the check-in assistant. "
+        "To get started, please send your phone number (e.g. 08012345678)."
     )

@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.ai.agent import handle_message, debug_faq_match
+from app.ai.agent import handle_faq, debug_faq_match
 
 router = APIRouter()
 
@@ -26,7 +26,7 @@ class FaqDebugIn(BaseModel):
 
 @router.post("/chat", response_model=ChatOut)
 def chat(payload: ChatIn, db: Session = Depends(get_db)):
-    reply = handle_message(db, payload.session_id, payload.message)
+    reply = handle_faq(db, payload.session_id, payload.message)
     return ChatOut(reply=reply)
 
 

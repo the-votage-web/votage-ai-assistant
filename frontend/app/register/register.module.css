@@ -205,6 +205,38 @@
   border: 1px solid #f5bfd0;
 }
 
+.tabs {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  background: rgba(226, 232, 240, 0.5);
+  padding: 6px;
+  border-radius: 12px;
+  width: fit-content;
+}
+
+.tabButton {
+  border: 0;
+  background: transparent;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.tabButton:hover {
+  color: #1e293b;
+}
+
+.tabButtonActive {
+  background: #ffffff;
+  color: #1e293b;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
 @media (min-width: 720px) {
   .page {
     padding-top: 44px;
