@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 type Msg = { role: "user" | "ai"; text: string };
 type QuickAction = { label: string; message: string };
 const DEFAULT_WELCOME_MESSAGE =
-  "Hi 👋 I’m the church assistant. I'm here to help with any questions you have about our services and events.\n\nFor **Check-in** or **Registration**, please visit our [Registration Page](https://votage.church/register).\n\nYou can ask me things like: “What time is service?” or “How do I join a connect group?”";
+  "Hi 👋 I’m the church assistant. I'm here to help with any questions you have about our services and events.\n\nYou can ask me things like: “What time is service?” or “How do I join a connect group?”";
 
 const QUICK_ACTIONS: QuickAction[] = [
   { label: "Start FAQ Session", message: "start faq session" },

@@ -183,7 +183,7 @@ export default function RegisterPage() {
           {activeTab === "checkin" ? (
             <ChatWidget
               apiUrl="/api/checkin"
-              welcomeMessage="Hi! 👋 I'm here to help you check in for service.\n\nPlease type your phone number to get started (e.g. 08012345678)."
+              welcomeMessage={`Hi! 👋 I'm here to help you check in for service.\n\n Please type your phone number to get started (e.g. 08012345678).\n\n`}
               containerStyle={{ minHeight: "0px", padding: 0 }}
             />
           ) : (
