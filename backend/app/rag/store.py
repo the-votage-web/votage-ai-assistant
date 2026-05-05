@@ -1,7 +1,6 @@
 import json
 import re
 import uuid
-import time
 from typing import Any
 
 from langchain_core.documents import Document
@@ -9,7 +8,6 @@ from sqlalchemy import create_engine, text
 
 from app.db.config import settings
 from typing import Optional, Any, Dict, Tuple, List, Any
-from app.rag.embeddings import embed  # your Bedrock Titan embedding
 
 
 
@@ -28,39 +26,31 @@ class PostgresRAGStore:
 
     def _ensure_table(self) -> None:
         with self.engine.begin() as conn:
-            # 1. Enable pgvector extension
-            conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector;"))
-
-            # 2. Create main RAG table
-            conn.execute(text("""
-                CREATE TABLE IF NOT EXISTS rag_documents (
-                    id UUID PRIMARY KEY,
-                    collection_name VARCHAR(120) NOT NULL,
-                    page_content TEXT NOT NULL,
-                    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
-                    embedding VECTOR(1536),
-                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-                );
-            """))
-
-            # 3. Index for filtering by collection
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_rag_documents_collection_name
-                ON rag_documents (collection_name);
-            """))
-
-            # 4. JSONB index for metadata filtering
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_rag_documents_metadata_gin
-                ON rag_documents USING GIN (metadata);
-            """))
-
-            # 5. Vector index (HNSW is often better than IVF Flat for small/medium sets)
-            conn.execute(text("""
-                CREATE INDEX IF NOT EXISTS ix_rag_documents_embedding
-                ON rag_documents
-                USING hnsw (embedding vector_cosine_ops);
-            """))
+            conn.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS rag_documents (
+                        id UUID PRIMARY KEY,
+                        collection_name VARCHAR(120) NOT NULL,
+                        page_content TEXT NOT NULL,
+                        metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                    )
+                    """
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_rag_documents_collection_name "
+                    "ON rag_documents (collection_name)"
+                )
+            )
+            conn.execute(
+                text(
+                    "CREATE INDEX IF NOT EXISTS ix_rag_documents_metadata_gin "
+                    "ON rag_documents USING GIN (metadata)"
+                )
+            )
 
     def add_documents(self, docs: list[Document]) -> None:
         if not docs:
@@ -69,22 +59,20 @@ class PostgresRAGStore:
         with self.engine.begin() as conn:
             for doc in docs:
                 doc_id = str(uuid.uuid4())
-
-                vector = embed(doc.page_content)
-
-                conn.execute(text("""
-                    INSERT INTO rag_documents
-                    (id, collection_name, page_content, metadata, embedding)
-                    VALUES (:id, :collection_name, :page_content, :metadata, :embedding)
-                """), {
-                    "id": doc_id,
-                    "collection_name": self.collection_name,
-                    "page_content": doc.page_content,
-                    "metadata": json.dumps(doc.metadata or {}),
-                    "embedding": vector
-                })
-                # Small sleep to avoid hitting rate limits too aggressively
-                time.sleep(0.5)
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO rag_documents (id, collection_name, page_content, metadata)
+                        VALUES (CAST(:id AS uuid), :collection_name, :page_content, CAST(:metadata AS jsonb))
+                        """
+                    ),
+                    {
+                        "id": doc_id,
+                        "collection_name": self.collection_name,
+                        "page_content": doc.page_content,
+                        "metadata": json.dumps(doc.metadata or {}),
+                    },
+                )
 
     
     def _metadata_where_clause(self, where: Optional[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
@@ -138,35 +126,60 @@ class PostgresRAGStore:
                     {"collection_name": self.collection_name, "id": raw_id},
                 )
 
-    def similarity_search(self, query: str, k: int = 4, filter=None):
-        q_vector = embed(query)
-
+    def similarity_search(
+        self,
+        query: str,
+        k: int = 4,
+        filter: Optional[Dict[str, Any]] = None
+    ) -> List[Document]:
         extra_where, meta_params = self._metadata_where_clause(filter)
-
         with self.engine.begin() as conn:
-            rows = conn.execute(text(f"""
-            SELECT id, page_content, metadata
-            FROM rag_documents
-            WHERE collection_name = :collection_name
-            {extra_where}
-            ORDER BY embedding <=> :vector
-            LIMIT :k
-        """), {
-            "collection_name": self.collection_name,
-            "vector": q_vector,
-            "k": k,
-            **meta_params
-        }).mappings().all()
+            rows = conn.execute(
+                text(
+                    f"""
+                    SELECT id, page_content, metadata
+                    FROM rag_documents
+                    WHERE collection_name = :collection_name
+                    {extra_where}
+                    ORDER BY created_at DESC
+                    LIMIT 500
+                    """
+                ),
+                {"collection_name": self.collection_name, **meta_params},
+            ).mappings().all()
 
-            results = []
-            for row in rows:
-                results.append(Document(
-                    page_content=row["page_content"],
-                    metadata=row["metadata"] or {}
-                ))
+        q = query or ""
+        q_tokens = _tokens(q)
+        q_lower = q.lower().strip()
 
-            return results
-        
+        scored: list[tuple[int, dict[str, Any]]] = []
+        for row in rows:
+            content = row["page_content"] or ""
+            content_tokens = _tokens(content)
+            overlap = len(q_tokens.intersection(content_tokens))
+            substring_bonus = 2 if q_lower and q_lower in content.lower() else 0
+            score = overlap * 3 + substring_bonus
+            scored.append((score, row))
+
+        scored.sort(key=lambda item: item[0], reverse=True)
+        top_rows = [row for _, row in scored[: max(1, k)]]
+
+        results: list[Document] = []
+        for row in top_rows:
+            metadata = row["metadata"]
+            if isinstance(metadata, str):
+                try:
+                    metadata = json.loads(metadata)
+                except Exception:
+                    metadata = {}
+            results.append(Document(page_content=row["page_content"], metadata=metadata or {}))
+
+        return results
+
+    def persist(self) -> None:
+        # No-op for PostgreSQL-backed store.
+        return
+
 
 def members_store():
     return PostgresRAGStore(collection_name=settings.MEMBERS_COLLECTION)
@@ -174,4 +187,3 @@ def members_store():
 
 def docs_store():
     return PostgresRAGStore(collection_name=settings.DOCS_COLLECTION)
-
