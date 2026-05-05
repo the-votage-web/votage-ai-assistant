@@ -1,7 +1,7 @@
 from pathlib import Path
 import re
 from langchain_core.documents import Document
-from app.rag.chroma_store import docs_store
+from app.rag.store import docs_store
 
 
 QA_BLOCK_RE = re.compile(

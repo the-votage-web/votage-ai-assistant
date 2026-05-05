@@ -1,17 +1,6 @@
 from uuid import UUID
-
 from pydantic import BaseModel, StrictStr, field_validator, model_validator
-
-DEFAULT_SERVICE_TYPES = ["sunday_service", "connect", "special_service"]
-DEFAULT_CONNECT_GROUPS = [
-    "KABOD CONNECT",
-    "NEWNESS CONNECT",
-    "UGBOWO CONNECT",
-    "FLOURISH CONNECT",
-    "GATEKEEPERS CONNECT",
-    "KOINONIA CONNECT",
-    "EKEHUAN CONNECT",
-]
+from app.constants.service import DEFAULT_SERVICE_TYPES
 
 
 class RegistrationIn(BaseModel):
@@ -112,45 +101,3 @@ class RegistrationOut(BaseModel):
 class RegisterOptionsOut(BaseModel):
     service_types: list[str]
     connect_groups: list[str]
-
-
-class ConnectGroupCreateIn(BaseModel):
-    service_id: UUID
-    name: str
-    description: str
-    meeting_time: str
-    meeting_day: str
-
-    @field_validator("name", "description", "meeting_time", "meeting_day", mode="before")
-    @classmethod
-    def _trim_fields(cls, value):
-        return value.strip() if isinstance(value, str) else value
-
-
-class ConnectGroupOut(BaseModel):
-    id: UUID
-    service_id: UUID | None = None
-    name: str
-    description: str
-    meeting_time: str
-    meeting_day: str
-
-
-class ServiceCreateIn(BaseModel):
-    name: str
-    theme: str | None = None
-    location: str | None = None
-
-    @field_validator("name", "theme", "location", mode="before")
-    @classmethod
-    def _trim_optional_str(cls, value):
-        if value is None:
-            return None
-        return value.strip() if isinstance(value, str) else value
-
-
-class ServiceOut(BaseModel):
-    id: UUID
-    name: str
-    theme: str | None = None
-    location: str | None = None

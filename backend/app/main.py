@@ -4,7 +4,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.chat import router as chat_router
 from app.api.form import router as form_router
 from app.api.checkin import router as checkin_router
-from app.core.config import settings
+from app.api.connect import router as connect_router
+from app.api.service import router as service_router
+from app.db.config import settings
 from app.db.session import engine
 from app.db.models import Base
 
@@ -21,6 +23,8 @@ app.add_middleware(
 app.include_router(chat_router, prefix="/api")
 app.include_router(form_router, prefix="/api")
 app.include_router(checkin_router, prefix="/api")
+app.include_router(connect_router, prefix="/api")
+app.include_router(service_router, prefix="/api")
 
 
 @app.get("/docs", include_in_schema=False)

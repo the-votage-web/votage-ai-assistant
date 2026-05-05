@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.ai.agent import handle_faq, debug_faq_match
+from app.services.faq.faq import handle_faq, debug_faq_match
 
 router = APIRouter()
 
