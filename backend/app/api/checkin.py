@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.ai.agent import handle_checkin
+from app.services.checkin.check_in import handle_checkin
 
 router = APIRouter()
 

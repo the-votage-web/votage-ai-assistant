@@ -1,0 +1,17 @@
+INTENT_MAP = {
+    "checkin": "checkin",
+    "check_in": "checkin",
+    "check-in": "checkin",
+    "attendance": "checkin",
+    "phone": "checkin",
+    "first_timer": "first_timer",
+    "firsttimer": "first_timer",
+    "first time": "first_timer",
+    "new": "first_timer",
+    "faq": "faq",
+    "question": "faq",
+    "update_profile": "update_profile",
+    "update profile": "update_profile",
+    "update": "update_profile",
+    "unknown": "unknown",
+}
