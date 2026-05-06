@@ -1,97 +1,290 @@
-from sqlalchemy.orm import Session
-from app.common.state import _load_state, _save_state
-from app.common.session import get_or_create_session, _is_end_session_message, _is_faq_session_start_message, _is_faq_session_end_message
-from app.common.llm.llm import extract
-from app.services.faq.crud import rag_answer_faq, _markdown_best_match, _answer_from_markdown_preferred
-from app.services.faq.utils import _is_greeting_message, _rerank_by_keyword_overlap, _best_doc_and_score, _extract_answer_from_doc
+import re
+import time
+from pathlib import Path
+from collections import OrderedDict
+from difflib import SequenceMatcher
+
 from app.db.config import settings
-from app.rag.store import docs_store
+from app.rag.chunker import QnAChunker
+from app.rag.embedder import OpenAIEmbedder
+from app.rag.retriever import PgVectorRetriever
+from app.rag.generator import OpenAIGenerator
+
+class FAQTemporarilyUnavailableError(Exception):
+    pass
 
 
-def handle_faq(db: Session, session_id: str, message: str) -> str:
-    chat_session = get_or_create_session(db, session_id)
-    state = _load_state(chat_session.state_json)
+class FAQService:
+    def __init__(self):
+        self.chunker = QnAChunker()
+        self.embedder = OpenAIEmbedder()
+        self.retriever = PgVectorRetriever(settings.DATABASE_URL)
+        self.generator = OpenAIGenerator()
+        self._faq_chunks = self._load_faq_chunks()
+        self._kb_vocab = self._build_vocab(self._faq_chunks)
+        self._answer_cache = OrderedDict()
+        self._cache_ttl_seconds = 900
+        self._cache_max_entries = 300
 
-    if _is_end_session_message(message):
-        state.pop("faq_session", None)
-        _save_state(db, chat_session, state)
-        return "Session ended. How else can I help you today?"
+    def build_index(self, markdown_text: str):
+        chunks = self.chunker.parse(markdown_text)
 
-    if _is_faq_session_start_message(message):
-        state["faq_session"] = True
-        _save_state(db, chat_session, state)
-        return "FAQ session started. Ask me any church question."
+        embedded = self.embedder.embed_batch(chunks)
 
-    if _is_faq_session_end_message(message):
-        state.pop("faq_session", None)
-        _save_state(db, chat_session, state)
-        return "I've closed the FAQ session. What else would you like to know?"
+        self.retriever.store_vectors(embedded)
 
-    ex = extract(message)
-    faq_session = bool(state.get("faq_session"))
+        return len(embedded)
 
-    if faq_session:
-        return rag_answer_faq(ex.question or message)
+    def ask(self, question: str):
+        cache_key = self._cache_key(question)
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
 
-    if _is_greeting_message(message):
-        return (
-            "Hi 👋 I’m the church FAQ assistant. I'm here to help with any questions you have about our services and events.\n\n"
-            "You can ask me things like: “What time is service?” or “How do I join a connect group?”"
+        use_wide_context = self._is_count_or_listing_query(question)
+        try:
+            query_vector = self.embedder.embed(question)
+            vector_context = self.retriever.search(query_vector, top_k=10 if use_wide_context else 6)
+            lexical_context = self._search_markdown(question, top_k=12 if use_wide_context else 6)
+            context = self._merge_contexts(question, vector_context, lexical_context, top_k=12 if use_wide_context else 7)
+            answer = self.generator.generate(question, context)
+            if self._is_low_information_answer(answer):
+                fallback = self._fallback_from_markdown(question)
+                if fallback:
+                    self._cache_set(cache_key, fallback)
+                    return fallback
+            self._cache_set(cache_key, answer)
+            return answer
+        except Exception as exc:
+            print(f"FAQ primary path failed, using fallback: {exc!r}")
+            lexical_context = self._search_markdown(question, top_k=12 if use_wide_context else 7)
+            if lexical_context:
+                try:
+                    answer = self.generator.generate(question, lexical_context)
+                    if self._is_low_information_answer(answer):
+                        raise ValueError("Low-information generator answer")
+                    self._cache_set(cache_key, answer)
+                    return answer
+                except Exception:
+                    pass
+            fallback = self._fallback_from_markdown(question)
+            if fallback:
+                self._cache_set(cache_key, fallback)
+                return fallback
+            raise FAQTemporarilyUnavailableError(
+                "FAQ service is temporarily overloaded. Please try again shortly."
+            ) from exc
+
+    def _cache_key(self, question: str):
+        normalized = question.lower().strip()
+        normalized = re.sub(r"\s+", " ", normalized)
+        normalized = re.sub(r"[^a-z0-9\s]", "", normalized)
+        return normalized
+
+    def _cache_get(self, key: str):
+        item = self._answer_cache.get(key)
+        if not item:
+            return None
+        expires_at, value = item
+        if expires_at < time.time():
+            self._answer_cache.pop(key, None)
+            return None
+        self._answer_cache.move_to_end(key)
+        return value
+
+    def _cache_set(self, key: str, value: str):
+        if self._is_low_information_answer(value):
+            return
+        self._answer_cache[key] = (time.time() + self._cache_ttl_seconds, value)
+        self._answer_cache.move_to_end(key)
+        if len(self._answer_cache) > self._cache_max_entries:
+            self._answer_cache.popitem(last=False)
+
+    def _is_low_information_answer(self, answer: str):
+        if not answer:
+            return True
+        a = answer.lower().strip()
+        markers = [
+            "i don't have enough information",
+            "i do not have enough information",
+            "i don't know",
+            "not enough information",
+        ]
+        return any(m in a for m in markers)
+
+    def _load_faq_chunks(self):
+        faq_path = Path(__file__).resolve().parents[2] / "data" / "faq.md"
+        if not faq_path.exists():
+            return []
+        markdown_text = faq_path.read_text(encoding="utf-8")
+        lines = markdown_text.splitlines()
+        chunks = []
+        current_source = "unknown"
+        current_q = None
+        current_a = []
+
+        def flush():
+            nonlocal current_q, current_a
+            if not current_q or not current_a:
+                return
+            answer = " ".join(current_a).strip()
+            chunks.append({
+                "id": f"{current_source}:{len(chunks)}",
+                "source": current_source,
+                "question": current_q,
+                "answer": answer,
+                "text": f"Q: {current_q}\nA: {answer}",
+            })
+            current_q = None
+            current_a = []
+
+        for raw_line in lines:
+            line = raw_line.strip()
+            if line.startswith("# Source:"):
+                flush()
+                current_source = line.replace("# Source:", "").strip()
+                continue
+            if line.startswith("## Q:"):
+                flush()
+                current_q = line.replace("## Q:", "").strip()
+                continue
+            if line.startswith("A:"):
+                current_a.append(line.replace("A:", "").strip())
+                continue
+            if current_q and line:
+                current_a.append(line)
+        flush()
+        return chunks
+
+    def _tokens(self, text: str):
+        words = re.findall(r"[a-zA-Z0-9']+", text.lower())
+        return {self._normalize_token(w) for w in words if len(w) > 2}
+
+    def _normalize_token(self, token: str):
+        t = token.lower().strip()
+        if len(t) > 4 and t.endswith("ies"):
+            return t[:-3] + "y"
+        if len(t) > 3 and t.endswith("s"):
+            return t[:-1]
+        return t
+
+    def _build_vocab(self, chunks):
+        vocab = set()
+        for chunk in chunks:
+            vocab.update(self._tokens(chunk["question"]))
+            vocab.update(self._tokens(chunk["answer"]))
+            source_name = str(chunk.get("source", "")).replace("/", " ")
+            vocab.update(self._tokens(source_name))
+        return vocab
+
+    def _expand_query_tokens(self, tokens):
+        expanded = set(tokens)
+        for token in tokens:
+            if len(token) < 4:
+                continue
+            best_match = None
+            best_ratio = 0.0
+            for candidate in self._kb_vocab:
+                ratio = SequenceMatcher(None, token, candidate).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best_match = candidate
+            if best_match and best_ratio >= 0.8:
+                expanded.add(best_match)
+        return expanded
+
+    def _is_count_or_listing_query(self, question: str):
+        q = question.lower()
+        return any(k in q for k in ["how many", "count", "total", "list", "all of"])
+
+    def _source_hint_bonus(self, question: str, chunk: dict):
+        q = question.lower()
+        source = str(chunk.get("source", "")).lower()
+        bonus = 0
+        if "connect" in q and "/connect" in source:
+            bonus += 4
+        if "service" in q and "/home" in source:
+            bonus += 2
+        if "pastor" in q and "/about" in source:
+            bonus += 2
+        if "sermon" in q and "/sermons" in source:
+            bonus += 2
+        return bonus
+
+    def _search_markdown(self, question: str, top_k: int = 7):
+        if not self._faq_chunks:
+            return []
+        query_tokens = self._expand_query_tokens(self._tokens(question))
+        query_text = question.lower()
+        if query_text.startswith("what about "):
+            query_tokens = query_tokens.union(
+                self._expand_query_tokens(self._tokens(query_text.replace("what about ", "", 1)))
+            )
+        scored = []
+        for chunk in self._faq_chunks:
+            chunk_tokens = self._tokens(chunk["question"]) | self._tokens(chunk["answer"])
+            overlap = len(query_tokens.intersection(chunk_tokens))
+            score = overlap + self._source_hint_bonus(question, chunk)
+            if score > 0:
+                scored.append((score, chunk))
+        scored.sort(key=lambda x: x[0], reverse=True)
+        return [chunk for _, chunk in scored[:top_k]]
+
+    def _merge_contexts(self, question: str, vector_context, lexical_context, top_k: int = 7):
+        merged = []
+        seen = set()
+        for chunk in lexical_context + vector_context:
+            key = (chunk.get("question"), chunk.get("answer"))
+            if key in seen:
+                continue
+            seen.add(key)
+            merged.append(chunk)
+        if not merged:
+            return []
+        merged.sort(
+            key=lambda c: (
+                len(self._tokens(question).intersection(self._tokens(c.get("question", "")) | self._tokens(c.get("answer", ""))))
+                + self._source_hint_bonus(question, c)
+            ),
+            reverse=True,
         )
+        return merged[:top_k]
 
-    # FAQ
-    if ex.intent == "faq":
-        q = ex.question or message
-        return rag_answer_faq(q)
+    def _fallback_from_markdown(self, question: str):
+        question_tokens = self._expand_query_tokens(self._tokens(question))
+        if not self._faq_chunks:
+            return None
+        if not question_tokens:
+            return self._faq_chunks[0]["answer"]
 
-    # First timer
-    if ex.intent == "first_timer":
-        return (
-            "👋 Welcome! Please register once here:\n"
-            f"{settings.REGISTRATION_PAGE_URL}"
-        )
+        best_answer = None
+        best_score = 0
+        for chunk in self._faq_chunks:
+            candidate_tokens = self._tokens(chunk["question"]) | self._tokens(chunk["answer"])
+            score = len(question_tokens.intersection(candidate_tokens)) + self._source_hint_bonus(question, chunk)
+            if score > best_score:
+                best_score = score
+                best_answer = chunk["answer"]
 
-    # Update profile
-    if ex.intent == "update_profile":
-        return "To update your details, please contact an admin or fill the first-timer form again with your correct details."
+        if best_answer:
+            return best_answer
+        return self._faq_chunks[0]["answer"]
 
-    # If they tried to check-in here, gently redirect them
-    if ex.intent == "checkin":
-        return (
-            "I'm sorry, I can only help with FAQ here. "
-            "For check-in, please visit our [Registration Page](https://votage.church/register)."
-        )
+faq_service = FAQService()
 
-    return (
-        "I’m not sure how to help with that. I'm here for FAQ and general info.\n\n"
-        "Try asking: “What time is service?”"
-    )
 
-def debug_faq_match(question: str) -> dict:
-    matched_q, matched_a, md_score = _markdown_best_match(question)
-    preferred = _answer_from_markdown_preferred(question)
-    result = {
-        "question": question,
-        "method": "unknown",
-        "matched_question": matched_q,
-        "score": round(md_score, 4),
-        "answer_preview": (preferred or matched_a or "")[:240],
-    }
-    if preferred:
-        result["method"] = "markdown_preferred"
-        return result
+def handle_faq(db, session_id: str, message: str):
+    """
+    Main chatbot logic (now RAG-powered)
+    """
 
-    try:
-        store = docs_store()
-        docs = store.similarity_search(question, k=5, filter={"doc_type": "faq_qa"})
-        docs = _rerank_by_keyword_overlap(question, docs)
-        best_doc, best_score = _best_doc_and_score(question, docs)
-        if best_doc:
-            result["method"] = "vector_fallback"
-            result["score"] = best_score
-            result["answer_preview"] = _extract_answer_from_doc(best_doc.page_content)[:240]
-        else:
-            result["method"] = "no_match"
-    except Exception:
-        result["method"] = "vector_error"
-    return result
+    # 1. OPTIONAL: store chat history (you already have db)
+    # save_message(db, session_id, message)
+
+    # 2. RAG answer
+    answer = faq_service.ask(message)
+
+    # 3. OPTIONAL: store bot response
+    # save_message(db, session_id, answer, role="bot")
+
+    return answer

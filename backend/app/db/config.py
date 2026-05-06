@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     AUTO_CREATE_TABLES: bool = False
 
     AWS_REGION: str = "us-east-1"
+    OPENAI_API_KEY: str = ""
+    OPENAI_EMBED_MODEL: str = "text-embedding-3-small"
+    OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
+    OPENAI_CHECKIN_MODEL: str = "gpt-4o-mini"
+    CHECKIN_LLM_PROVIDER: str = "bedrock"
     @model_validator(mode="after")
     def _normalize_urls(self):
         base = self.FRONTEND_URL.rstrip("/")

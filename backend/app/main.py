@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+from app.rag.db_init import DBInitializer
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -62,6 +66,9 @@ def docs_landing() -> HTMLResponse:
 
 @app.on_event("startup")
 def create_tables_on_startup():
-    # Keep disabled by default to avoid conflicts with Alembic migrations.
-    if settings.AUTO_CREATE_TABLES:
-        Base.metadata.create_all(bind=engine)
+    print("🚀 Initializing RAG DB...")
+
+    DBInitializer(settings.DATABASE_URL).setup()
+
+    print("✅ RAG ready")
+

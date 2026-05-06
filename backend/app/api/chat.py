@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
-from app.services.faq.faq import handle_faq, debug_faq_match
+from app.services.faq.faq import handle_faq, FAQTemporarilyUnavailableError
 
 router = APIRouter()
 
@@ -26,10 +26,8 @@ class FaqDebugIn(BaseModel):
 
 @router.post("/chat", response_model=ChatOut)
 def chat(payload: ChatIn, db: Session = Depends(get_db)):
-    reply = handle_faq(db, payload.session_id, payload.message)
+    try:
+        reply = handle_faq(db, payload.session_id, payload.message)
+    except FAQTemporarilyUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return ChatOut(reply=reply)
-
-
-@router.post("/debug/faq-match")
-def faq_match_debug(payload: FaqDebugIn):
-    return debug_faq_match(payload.question)
