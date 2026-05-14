@@ -172,13 +172,26 @@ export default function ChatWidget({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_id: sessionId, message: text }),
       });
-      if (!res.ok) throw new Error("Request failed");
+      if (!res.ok) {
+        if (res.status === 503) {
+          throw new Error("SERVICE_BUSY");
+        }
+        throw new Error("Request failed");
+      }
       const { reply } = (await res.json()) as { reply: string };
       setMsgs((m) => [...m, { role: "ai", text: reply }]);
-    } catch {
+    } catch (err) {
+      const busyMessage =
+        "I’m receiving too many requests right now. Please try again in a minute.";
       setMsgs((m) => [
         ...m,
-        { role: "ai", text: "Sorry — I couldn’t reach the server. Please try again." },
+        {
+          role: "ai",
+          text:
+            err instanceof Error && err.message === "SERVICE_BUSY"
+              ? busyMessage
+              : "Sorry — I couldn’t reach the server. Please try again.",
+        },
       ]);
     } finally {
       setBusy(false);
@@ -216,7 +229,7 @@ export default function ChatWidget({
         alignItems: "center",
         justifyContent: "center",
         background: "linear-gradient(180deg, #f7fafc 0%, #edf2f7 100%)",
-        padding: 16,
+        padding: 10,
         boxSizing: "border-box",
         ...containerStyle,
       }}
