@@ -30,5 +30,18 @@ class DBInitializer:
                 USING hnsw (embedding vector_cosine_ops);
             """)
 
+            # Chat logs: one row per question (question, answer, answered flag, score)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS chat_logs (
+                    id UUID PRIMARY KEY,
+                    session_id TEXT,
+                    question TEXT,
+                    answer TEXT,
+                    answered BOOLEAN,
+                    top_score DOUBLE PRECISION,
+                    created_at TIMESTAMPTZ DEFAULT now()
+                );
+            """)
+
         self.conn.commit()
         print("✅ pgvector DB initialized")

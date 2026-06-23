@@ -1,3 +1,13 @@
+import sys
+
+# Make stdout/stderr UTF-8 so emoji in startup print() calls (✅ 🚀) don't crash
+# on Windows' default cp1252 console (UnicodeEncodeError).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 from dotenv import load_dotenv
 load_dotenv()
 

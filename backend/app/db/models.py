@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, Date, DateTime, ForeignKey, UniqueConstraint, func, Text, Boolean
+from sqlalchemy import String, Date, DateTime, ForeignKey, UniqueConstraint, func, Text, Boolean, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from typing import Optional
@@ -90,3 +90,16 @@ class FirstTimerEvent(Base):
     __table_args__ = (
         UniqueConstraint("member_id", "service_date", "service_name", name="uq_first_timer_member_day_event"),
     )
+
+
+class ChatLog(Base):
+    """One row per chatbot question: the question, the bot's answer, whether it
+    was actually answered, and the best similarity score (for review/tuning)."""
+    __tablename__ = "chat_logs"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    session_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    question: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    answer: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    answered: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    top_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

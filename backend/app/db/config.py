@@ -59,6 +59,11 @@ class Settings(BaseSettings):
     OPENAI_CHAT_MODEL: str = "gpt-4o-mini"
     OPENAI_CHECKIN_MODEL: str = "gpt-4o-mini"
     CHECKIN_LLM_PROVIDER: str = "bedrock"
+
+    # Secret required (via the X-Admin-Key header) to read chat logs.
+    # Empty/unset means the chat-logs endpoint is locked (deny by default).
+    ADMIN_API_KEY: str = ""
+
     @model_validator(mode="after")
     def _normalize_urls(self):
         base = self.FRONTEND_URL.rstrip("/")

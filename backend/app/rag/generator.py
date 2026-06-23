@@ -17,10 +17,17 @@ class OpenAIGenerator:
             [f"Q: {c['question']}\nA: {c['answer']}" for c in context]
         )
 
-        prompt = f"""
-You are a helpful assistant for a church FAQ system.
+        prompt = f"""You are a helpful assistant for The Votage church FAQ.
 
-Use ONLY the context below to answer the question.
+Use the context below (question/answer pairs from the church's knowledge base) to answer
+the user's question. You may combine and rephrase across the pairs, as long as everything
+you say is supported by the context.
+
+Rules:
+- Base your answer only on the context. Do NOT use outside knowledge or invent details.
+- If the context contains nothing that addresses the user's question (the topic simply
+  isn't covered), reply with EXACTLY this sentence and nothing else:
+  I don't have enough information.
 
 Context:
 {context_text}
@@ -28,10 +35,7 @@ Context:
 Question:
 {question}
 
-If the answer is not in the context, say you don't have enough information.
-
-Answer:
-"""
+Answer:"""
 
         max_retries = 5
         base_delay = 1.0

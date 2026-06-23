@@ -9,6 +9,14 @@ from app.rag.chunker import QnAChunker
 from app.rag.embedder import OpenAIEmbedder
 from app.rag.retriever import PgVectorRetriever
 from app.rag.generator import OpenAIGenerator
+from app.services.faq.logs import log_chat
+
+# When no knowledge-base entry is relevant, reply honestly instead of guessing.
+NO_ANSWER_REPLY = "I don't have that information yet. Would you like to contact a church admin for help?"
+# Below this best vector-similarity score (and with no keyword match), treat the
+# question as uncovered. 0.20 sits safely below every covered question we measured.
+RELEVANCE_FLOOR = 0.20
+
 
 class FAQTemporarilyUnavailableError(Exception):
     pass
@@ -35,42 +43,53 @@ class FAQService:
 
         return len(embedded)
 
-    def ask(self, question: str):
+    def ask(self, question: str) -> str:
+        return self.ask_with_meta(question)["answer"]
+
+    def ask_with_meta(self, question: str) -> dict:
+        """Answer a question, returning {answer, answered, top_score}.
+
+        answered=False means nothing in the knowledge base was relevant, so the
+        bot gave the honest "I don't have that information" reply (a gap to fill).
+        """
         cache_key = self._cache_key(question)
         cached = self._cache_get(cache_key)
         if cached:
-            return cached
+            return {"answer": cached, "answered": True, "top_score": None}
 
         use_wide_context = self._is_count_or_listing_query(question)
         try:
             query_vector = self.embedder.embed(question)
             vector_context = self.retriever.search(query_vector, top_k=10 if use_wide_context else 6)
+            top_score = max((c.get("score", 0.0) for c in vector_context), default=0.0)
             lexical_context = self._search_markdown(question, top_k=12 if use_wide_context else 6)
+
+            # Hard floor: nothing is even close and no keyword match -> honest
+            # no-answer, and skip the LLM call entirely.
+            if top_score < RELEVANCE_FLOOR and not lexical_context:
+                return {"answer": NO_ANSWER_REPLY, "answered": False, "top_score": top_score}
+
             context = self._merge_contexts(question, vector_context, lexical_context, top_k=12 if use_wide_context else 7)
             answer = self.generator.generate(question, context)
+
+            # The strict-prompted model judged the context doesn't actually answer
+            # the question -> respect that instead of returning a weak match.
             if self._is_low_information_answer(answer):
-                fallback = self._fallback_from_markdown(question)
-                if fallback:
-                    self._cache_set(cache_key, fallback)
-                    return fallback
+                return {"answer": NO_ANSWER_REPLY, "answered": False, "top_score": top_score}
+
             self._cache_set(cache_key, answer)
-            return answer
+            return {"answer": answer, "answered": True, "top_score": top_score}
         except Exception as exc:
             print(f"FAQ primary path failed, using fallback: {exc!r}")
             lexical_context = self._search_markdown(question, top_k=12 if use_wide_context else 7)
             if lexical_context:
                 try:
                     answer = self.generator.generate(question, lexical_context)
-                    if self._is_low_information_answer(answer):
-                        raise ValueError("Low-information generator answer")
-                    self._cache_set(cache_key, answer)
-                    return answer
+                    if not self._is_low_information_answer(answer):
+                        self._cache_set(cache_key, answer)
+                        return {"answer": answer, "answered": True, "top_score": None}
                 except Exception:
                     pass
-            fallback = self._fallback_from_markdown(question)
-            if fallback:
-                self._cache_set(cache_key, fallback)
-                return fallback
             raise FAQTemporarilyUnavailableError(
                 "FAQ service is temporarily overloaded. Please try again shortly."
             ) from exc
@@ -274,17 +293,18 @@ faq_service = FAQService()
 
 
 def handle_faq(db, session_id: str, message: str):
-    """
-    Main chatbot logic (now RAG-powered)
-    """
+    """Main chatbot entry point: answer the question and log it for review."""
+    result = faq_service.ask_with_meta(message)
+    answer = result["answer"]
 
-    # 1. OPTIONAL: store chat history (you already have db)
-    # save_message(db, session_id, message)
-
-    # 2. RAG answer
-    answer = faq_service.ask(message)
-
-    # 3. OPTIONAL: store bot response
-    # save_message(db, session_id, answer, role="bot")
-
+    # Record every question (and whether it was answered) so the team can see
+    # how the bot is doing and which questions need answers added.
+    log_chat(
+        db,
+        session_id=session_id,
+        question=message,
+        answer=answer,
+        answered=result["answered"],
+        top_score=result.get("top_score"),
+    )
     return answer
