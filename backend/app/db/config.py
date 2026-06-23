@@ -9,9 +9,35 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # Required in every environment (no hardcoded secret in repo).
-    DATABASE_URL: str
+    DB_USER: str
+    DB_PASSWORD: str
+    DB_HOST: str
+    DB_PORT: int = 5432
+    DB_NAME: str
+    DB_SSLMODE: str = ""
+    DB_OPTIONS: str = ""
+    DB_CHANNEL_BINDING: str = ""
 
+    @property
+    def DATABASE_URL(self) -> str:
+        from sqlalchemy import URL
+        query = {}
+        if self.DB_SSLMODE:
+            query["sslmode"] = self.DB_SSLMODE
+        if self.DB_OPTIONS:
+            query["options"] = self.DB_OPTIONS
+        if self.DB_CHANNEL_BINDING:
+            query["channel_binding"] = self.DB_CHANNEL_BINDING
+            
+        return URL.create(
+            drivername="postgresql",
+            username=self.DB_USER,
+            password=self.DB_PASSWORD,
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
+            query=query if query else None
+        ).render_as_string(hide_password=False)
     OLLAMA_BASE_URL: str = "http://localhost:11434"
     LLM_MODEL: str = "llama3.2"
     EMBED_MODEL: str = "nomic-embed-text"
