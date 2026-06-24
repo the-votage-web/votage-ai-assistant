@@ -12,7 +12,7 @@ from app.rag.generator import OpenAIGenerator
 from app.services.faq.logs import log_chat
 
 # When no knowledge-base entry is relevant, reply honestly instead of guessing.
-NO_ANSWER_REPLY = "I don't have that information yet. Would you like to contact a church admin for help?"
+NO_ANSWER_REPLY = "Sorry, I don't have that information yet. Kindly reach out to the church admin for help."
 # Below this best vector-similarity score (and with no keyword match), treat the
 # question as uncovered. 0.20 sits safely below every covered question we measured.
 RELEVANCE_FLOOR = 0.20
@@ -90,9 +90,9 @@ class FAQService:
                         return {"answer": answer, "answered": True, "top_score": None}
                 except Exception:
                     pass
-            raise FAQTemporarilyUnavailableError(
-                "FAQ service is temporarily overloaded. Please try again shortly."
-            ) from exc
+            # Couldn't produce an answer (e.g. a transient backend error) — reply
+            # honestly rather than surfacing a scary error to the visitor.
+            return {"answer": NO_ANSWER_REPLY, "answered": False, "top_score": None}
 
     def _cache_key(self, question: str):
         normalized = question.lower().strip()

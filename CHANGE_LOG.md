@@ -63,6 +63,15 @@ _Verified: no key → 403, wrong key → 403, correct key → data; `/api/chat` 
 - **Maintenance rule:** `faq.md` is the single source of truth → edit it → run `python -m app.ingestion.rebuild_index` → restart the backend.
 - _(Pending decision: the Workers Code of Conduct doc — internal/staff-facing — was NOT ingested; see §4.)_
 
+### Bugfix: stale DB connection caused a misleading "too many requests" error (APPLIED)
+
+Root cause: the vector-search code held **one long-lived database connection**; Neon drops idle connections, so after a while every meaning-search threw `connection already closed`. Uncovered questions then fell through to a 503, which the frontend mislabels as *"I'm receiving too many requests"* — so it looked like a rate limit but wasn't. (Covered questions still worked because the keyword backup answered them — which is why only "wrong" questions showed the error.)
+
+- **`backend/app/rag/retriever.py`** — the retriever now **reconnects automatically** if its connection is stale, and retries the query once.
+- **`backend/app/services/faq/faq.py`** — on any unrecoverable error, reply with the friendly *"I don't have that information yet…"* message instead of a scary 503.
+
+_Verified: "Can I bring my dog", "Who is in charge of drums" now reply honestly; covered questions still answer._
+
 ---
 
 ## 2. Database changes
