@@ -56,6 +56,13 @@ A background security review flagged that `GET /api/faq/logs` was unauthenticate
 
 _Verified: no key → 403, wrong key → 403, correct key → data; `/api/chat` stays public._
 
+### Knowledge base updates (content)
+
+- **`backend/app/data/faq.md`** — updated the church address to "The Winlos/Votage Center, by Ascend School, Airport Road Extension, Benin City," and added 15 Q&A pairs from the **Membership 101** handbook (church story, founders' bios, beliefs, vision/mission, core values).
+- **`backend/app/ingestion/rebuild_index.py`** (new file) — a reusable command that re-syncs the vector store from `faq.md` (clears + re-embeds).
+- **Maintenance rule:** `faq.md` is the single source of truth → edit it → run `python -m app.ingestion.rebuild_index` → restart the backend.
+- _(Pending decision: the Workers Code of Conduct doc — internal/staff-facing — was NOT ingested; see §4.)_
+
 ---
 
 ## 2. Database changes
@@ -73,6 +80,7 @@ All against the **team's Neon database** (the connection string provided by the 
 - **Inserted 34 rows into `faq_embeddings`** (table went 0 → 34) by embedding the existing `backend/app/data/faq.md` (the "vector store" / step b).
   - Used OpenAI `text-embedding-3-small`. No website scraping was done.
   - This is what lets the chatbot search by *meaning* instead of just keywords.
+- **Re-embedded to 49 rows** after the knowledge-base update (address fix + Membership 101) via `rebuild_index.py` — the table is cleared and rebuilt from `faq.md`, so it always matches the file.
 
 ### What was NOT touched
 - No other tables were created, modified, or read for writing.
@@ -93,7 +101,7 @@ All against the **team's Neon database** (the connection string provided by the 
 
 ## 4. Still to do (planned)
 
-- **Ingest the two church PDFs** into the knowledge base — needs a new PDF-reading step (the current ingestion only scrapes the website). This is how we actually *fill* the gaps that the logging surfaces (parking, dress code, etc.).
+- **Decide on the Workers Code of Conduct doc** — it's internal/staff-facing (worker rules, not visitor FAQ), so it was NOT ingested. Confirm whether the *public* chatbot should answer from it before adding. (Membership 101 is already ingested.)
 - **(Optional) Clear test rows** from `chat_logs` before real use (it currently holds our local test questions).
 - **(Optional) Commit & open a PR** for the accuracy + logging changes once you're happy.
 
