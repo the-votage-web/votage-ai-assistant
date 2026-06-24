@@ -72,6 +72,12 @@ Root cause: the vector-search code held **one long-lived database connection**; 
 
 _Verified: "Can I bring my dog", "Who is in charge of drums" now reply honestly; covered questions still answer._
 
+### Tuning: answer church shorthand like "connect" (APPLIED)
+
+The strict answer prompt was over-refusing valid shorthand — e.g. "What is a connect?" was declined even though Connect Group content was retrieved with a strong 0.62 similarity score. Updated `backend/app/rag/generator.py` to interpret the question reasonably (treat "connect" as "Connect Group"), while still declining genuinely-uncovered topics.
+
+_Verified battery: "connect" / "connect group" / "meet people" / location all answer; "wear" / "parking" / "dog" / "drums" still decline._
+
 ---
 
 ## 2. Database changes

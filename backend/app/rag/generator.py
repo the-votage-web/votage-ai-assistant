@@ -20,14 +20,16 @@ class OpenAIGenerator:
         prompt = f"""You are a helpful assistant for The Votage church FAQ.
 
 Use the context below (question/answer pairs from the church's knowledge base) to answer
-the user's question. You may combine and rephrase across the pairs, as long as everything
-you say is supported by the context.
+the user's question. You may combine and rephrase across the pairs. Interpret the question
+reasonably: if it uses a shortened or informal version of a term that appears in the context
+(for example "connect" for "Connect Group"), treat them as the same thing and answer.
 
 Rules:
-- Base your answer only on the context. Do NOT use outside knowledge or invent details.
-- If the context contains nothing that addresses the user's question (the topic simply
-  isn't covered), reply with EXACTLY this sentence and nothing else:
-  I don't have enough information.
+- Base your answer only on facts found in the context. Do NOT use outside knowledge or
+  invent details.
+- Only decline if the context genuinely does not contain an answer to the question — i.e.
+  the subject is not covered at all. In that case reply with EXACTLY this sentence and
+  nothing else: I don't have enough information.
 
 Context:
 {context_text}
