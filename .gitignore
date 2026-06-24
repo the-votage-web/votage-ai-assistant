@@ -17,3 +17,6 @@ backend/app/__pycache__/
 
 # node
 node_modules/
+
+# local source documents (church PDFs/txt) — the content lives in faq.md instead
+backend/app/data/docs/
