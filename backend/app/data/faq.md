@@ -161,3 +161,9 @@ A: Church 101 is the basic introduction to The Votage church family. It explains
 
 ## Q: Why should I belong to a church family?
 A: The Votage believes the church is a spiritual family, that God expects every believer to be part of a church family, and that being part of one brings enormous benefits (Ephesians 2:19).
+
+
+# Source: General & policies
+
+## Q: Can I bring my dog or pet to church?
+A: We love animals and understand the special bond you share with your pet! To keep our shared spaces comfortable, safe, and focused for everyone during services, we generally ask that those spaces remain reserved for human attendees. We'd love to welcome you to our services, and we appreciate your understanding.

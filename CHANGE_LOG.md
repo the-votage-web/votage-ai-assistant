@@ -14,7 +14,7 @@
 |---|---|---|---|
 | **Runs on Windows** | Crashed on startup (emoji in logs) | UTF-8 output fix | The app actually starts on Windows |
 | **Search quality** | Keyword matching only (vector store empty) | `faq.md` embedded (34 entries) | Finds answers by **meaning**, not just shared words |
-| **Accuracy** | Confidently wrong on questions it didn't know ("what should I wear?" → Connect Groups) | Honest "I don't have that information" when a topic isn't covered | **Honest instead of wrong** |
+| **Answer behavior** | Confidently wrong on anything not in the KB | Answers church facts from the KB; gives warm general guidance for everyday questions; defers personal/pastoral & unknown church facts to an admin | Helpful *and* honest — never invents church facts |
 | **Question history** | Nothing captured — every question forgotten | Every question logged + an admin view of the unanswered gaps | See what the bot couldn't answer, and improve it |
 | **Security** | Chat-logs endpoint open to anyone | Requires a secret admin key (locked by default) | Visitors' questions/answers are protected |
 
@@ -77,6 +77,20 @@ _Verified: "Can I bring my dog", "Who is in charge of drums" now reply honestly;
 The strict answer prompt was over-refusing valid shorthand — e.g. "What is a connect?" was declined even though Connect Group content was retrieved with a strong 0.62 similarity score. Updated `backend/app/rag/generator.py` to interpret the question reasonably (treat "connect" as "Connect Group"), while still declining genuinely-uncovered topics.
 
 _Verified battery: "connect" / "connect group" / "meet people" / location all answer; "wear" / "parking" / "dog" / "drums" still decline._
+
+### Answer policy: warm general answers + defer personal/unknown (APPLIED — supersedes the strict "decline everything not in the KB" above)
+
+Per the team's direction, broadened the bot from "only answer from the KB" to a warm assistant with **three behaviors**:
+- **Church-specific facts** → answer from `faq.md`; if not in the KB, **defer to admin** (never invent).
+- **General / common-sense** questions (dress, etiquette, broadly-Christian) → warm, faith-appropriate **general answer**.
+- **Personal / pastoral** (counselling, prayer, spiritual advice, sensitive) → **defer to admin**.
+
+- **`backend/app/rag/generator.py`** — rewrote the answer prompt to follow the three buckets above (and never fabricate church-specific facts).
+- **`backend/app/services/faq/faq.py`** — removed the hard "skip-the-LLM" relevance floor so general questions reach the model (the model now decides answer vs defer); removed the now-unused `RELEVANCE_FLOOR`.
+- **`backend/app/data/faq.md`** — added the church's pet/dog policy (so it answers consistently).
+- **Holistic context:** the model now receives the **whole knowledge base** on every question (not just the closest few entries), so it reasons about the church as a whole and connects partial/related terms — e.g. "refresh" → Refresh Miracle Service & Tour, "what time is church" → service times, "growth track" → the membership class. The answer prompt was also told to match partial/shortened names to the fuller item. (Works because the KB is small; if it grows very large we'd reintroduce selective retrieval.)
+
+_Verified: "refresh" / "the refresh" / "growth track" / "what time is church" now answer by connecting related entries; church facts answer; general questions answer warmly; counselling / prayer-request / unknown facts (wifi) still defer to admin._
 
 ---
 

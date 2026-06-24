@@ -11,11 +11,9 @@ from app.rag.retriever import PgVectorRetriever
 from app.rag.generator import OpenAIGenerator
 from app.services.faq.logs import log_chat
 
-# When no knowledge-base entry is relevant, reply honestly instead of guessing.
+# Shown when the bot should defer to a human: church-specific facts it doesn't have,
+# and personal/pastoral questions. (The model emits a sentinel; see ask_with_meta.)
 NO_ANSWER_REPLY = "Sorry, I don't have that information yet. Kindly reach out to the church admin for help."
-# Below this best vector-similarity score (and with no keyword match), treat the
-# question as uncovered. 0.20 sits safely below every covered question we measured.
-RELEVANCE_FLOOR = 0.20
 
 
 class FAQTemporarilyUnavailableError(Exception):
@@ -63,17 +61,15 @@ class FAQService:
             vector_context = self.retriever.search(query_vector, top_k=10 if use_wide_context else 6)
             top_score = max((c.get("score", 0.0) for c in vector_context), default=0.0)
             lexical_context = self._search_markdown(question, top_k=12 if use_wide_context else 6)
-
-            # Hard floor: nothing is even close and no keyword match -> honest
-            # no-answer, and skip the LLM call entirely.
-            if top_score < RELEVANCE_FLOOR and not lexical_context:
-                return {"answer": NO_ANSWER_REPLY, "answered": False, "top_score": top_score}
-
-            context = self._merge_contexts(question, vector_context, lexical_context, top_k=12 if use_wide_context else 7)
+            # Give the model the WHOLE knowledge base (it's small) so it can reason about
+            # the church holistically — most-relevant entries first, then everything else.
+            relevant = self._merge_contexts(question, vector_context, lexical_context, top_k=12 if use_wide_context else 7)
+            seen = {(c.get("question"), c.get("answer")) for c in relevant}
+            context = relevant + [c for c in self._faq_chunks if (c.get("question"), c.get("answer")) not in seen]
             answer = self.generator.generate(question, context)
 
-            # The strict-prompted model judged the context doesn't actually answer
-            # the question -> respect that instead of returning a weak match.
+            # The model chose to defer (a church-specific fact it doesn't have, or a
+            # personal/pastoral question) -> show the friendly "reach out to admin" reply.
             if self._is_low_information_answer(answer):
                 return {"answer": NO_ANSWER_REPLY, "answered": False, "top_score": top_score}
 
