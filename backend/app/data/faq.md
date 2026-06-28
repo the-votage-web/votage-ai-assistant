@@ -4,7 +4,7 @@
 A: The Votage offers three services at 7:00 am, 8:30 am, and 10:00 am.
 
 ## Q: Where is The Votage located?
-A: The Votage is located at 144 Airport Road, Opposite DVD filling station, Benin City.
+A: The Votage is located at The Winlos/Votage Center, by Ascend School, Airport Road Extension, Benin City.
 
 ## Q: What is a Connect Group?
 A: Connect groups are small communities where you can build real relationships, grow in your faith, and be part of a caring family.
@@ -113,3 +113,57 @@ A: You can view the latest sermons by accessing the sermons section on The Votag
 
 
 # Source: /growth-track
+
+
+# Source: Membership 101 (Growth Track handbook)
+
+## Q: When did The Votage Church start?
+A: The Votage Church (Voice of This Age) officially began on January 13th, 2019. It is the church expression component of The Winlos Ministry.
+
+## Q: Who founded The Votage Church?
+A: The Votage Church was founded by Rev. Ohis Ojeikere and Pastor Anwinli Ojeikere, who are the lead pastors.
+
+## Q: What is The Winlos?
+A: The Winlos is an online ministry started by Rev. Ohis and Pastor Anwinli Ojeikere in 2013. It uses skits and comics to teach life and relationship principles and to inspire people for the kingdom, reaching millions of people around the globe. The Votage Church is the church expression component of The Winlos Ministry.
+
+## Q: Who is Rev. Ohis Ojeikere?
+A: Rev. Ohiomah Olumuyiwa Ojeikere hails from Afuze, in the Owan East part of Edo State. He showed dedication to ministry from age 13 as pastor of the children's church at his local assembly, later became a teenage fellowship coordinator, and was president of All Campus Fellowship at the University of Ilorin (where he studied Sociology). In 2012 he became pastor at RCCG Youth Church, Eagle's Court parish, Benin City, before founding The Votage Church.
+
+## Q: Who is Pastor Anwinli Ojeikere?
+A: Pastor Anwinli Cordelia Ojeikere is from Aniocha South of Delta State. She has a passion to see ladies fulfil their life's purpose. She served in the leadership of Christian Fellowship International (CFI) while studying Biochemistry at Delta State University, Abraka, and married Rev. Ohis in 2013.
+
+## Q: What does The Votage Church believe?
+A: The Votage holds to core beliefs in the Bible as God's reliable authority; Jesus Christ as the sinless Savior and only mediator between God and us; the need to be born again through repentance and faith; water baptism; and the Holy Spirit, who empowers believers to live the Christian life.
+
+## Q: What does The Votage believe about the Bible?
+A: The Votage believes God's Word is the only completely reliable and truthful authority and accepts the Bible as the manual for living. Its first question when facing a decision is, "What does the Bible say?"
+
+## Q: What does The Votage believe about being born again?
+A: The Votage believes salvation comes only through God's grace — not human effort — and must be received personally through repentance and faith in Jesus Christ. To become a Christian is to become a brand new person inside.
+
+## Q: What does The Votage believe about water baptism?
+A: The Votage believes water baptism is essential to living an overcoming, victorious life, and that believers should be buried with Christ in the waters of baptism following conversion.
+
+## Q: What is the purpose of The Votage Church?
+A: The Votage exists to reach people with the life-giving message of Jesus, that they might become fully-devoted followers of Christ. This purpose is drawn from the Great Commission.
+
+## Q: What is the vision of The Votage Church?
+A: To present the Kingdom, the Power and the Glory of God to the world, through every available means, especially media.
+
+## Q: What is the mission of The Votage Church?
+A: To raise men that will rule and reign in this life in Christ Jesus, right here and now.
+
+## Q: What are the core values of The Votage Church?
+A: The Votage has ten core values: (1) Right Value on People, (2) Relationship over Structure, (3) World Wide Vision, (4) Empowering Environment, (5) Discipleship, (6) Service, (7) Generosity, (8) Eternity Consciousness, (9) The Spirit of Excellence, and (10) Fervent Prayer.
+
+## Q: What is the Membership Class (Church 101)?
+A: Church 101 is the basic introduction to The Votage church family. It explains who the church is and what it believes, covering an introduction to Votage's core values, vision and mission; new creation realities; the doctrine of baptisms; and the love of God and spiritual growth.
+
+## Q: Why should I belong to a church family?
+A: The Votage believes the church is a spiritual family, that God expects every believer to be part of a church family, and that being part of one brings enormous benefits (Ephesians 2:19).
+
+
+# Source: General & policies
+
+## Q: Can I bring my dog or pet to church?
+A: We love animals and understand the special bond you share with your pet! To keep our shared spaces comfortable, safe, and focused for everyone during services, we generally ask that those spaces remain reserved for human attendees. We'd love to welcome you to our services, and we appreciate your understanding.
