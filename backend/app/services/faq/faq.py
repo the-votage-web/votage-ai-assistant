@@ -10,6 +10,7 @@ from app.rag.embedder import OpenAIEmbedder
 from app.rag.retriever import PgVectorRetriever
 from app.rag.generator import OpenAIGenerator
 from app.services.faq.logs import log_chat
+from app.services.faq.kb import kb_entry_to_chunk
 
 # Shown when the bot should defer to a human: church-specific facts it doesn't have,
 # and personal/pastoral questions. (The model emits a sentinel; see ask_with_meta.)
@@ -26,7 +27,7 @@ class FAQService:
         self.embedder = OpenAIEmbedder()
         self.retriever = PgVectorRetriever(settings.DATABASE_URL)
         self.generator = OpenAIGenerator()
-        self._faq_chunks = self._load_faq_chunks()
+        self._faq_chunks = self._load_faq_chunks() + self._load_kb_chunks()
         self._kb_vocab = self._build_vocab(self._faq_chunks)
         self._answer_cache = OrderedDict()
         self._cache_ttl_seconds = 900
@@ -170,6 +171,45 @@ class FAQService:
                 current_a.append(line)
         flush()
         return chunks
+
+    def read_seed_markdown(self) -> str:
+        faq_path = Path(__file__).resolve().parents[2] / "data" / "faq.md"
+        return faq_path.read_text(encoding="utf-8") if faq_path.exists() else ""
+
+    def _load_kb_chunks(self):
+        """Load admin-authored entries from the DB. Defensive — never blocks startup."""
+        try:
+            from app.db.session import SessionLocal
+            from app.services.faq.kb import list_kb_entries
+            db = SessionLocal()
+            try:
+                entries = list_kb_entries(db)
+            finally:
+                db.close()
+            return [kb_entry_to_chunk(e) for e in entries]
+        except Exception as exc:
+            print(f"kb chunk load failed: {exc!r}")
+            return []
+
+    def add_entry(self, entry: dict):
+        """Embed + upsert a KB entry and add it to the live in-memory chunks."""
+        chunk = kb_entry_to_chunk(entry)
+        vector = self.embedder.embed(chunk["text"])
+        self.retriever.upsert_vector({**chunk, "embedding": vector, "metadata": {"source": chunk["source"]}})
+        self._faq_chunks = [c for c in self._faq_chunks if c["id"] != chunk["id"]]
+        self._faq_chunks.append(chunk)
+        self._kb_vocab = self._build_vocab(self._faq_chunks)
+
+    def update_entry(self, entry: dict):
+        """Re-embed and replace an existing KB entry (same id)."""
+        self.add_entry(entry)
+
+    def remove_entry(self, entry_id: str):
+        """Delete a KB entry's vector and live chunk."""
+        vector_id = f"admin:{entry_id}"
+        self.retriever.delete_vector(vector_id)
+        self._faq_chunks = [c for c in self._faq_chunks if c["id"] != vector_id]
+        self._kb_vocab = self._build_vocab(self._faq_chunks)
 
     def _tokens(self, text: str):
         words = re.findall(r"[a-zA-Z0-9']+", text.lower())
