@@ -43,5 +43,24 @@ class DBInitializer:
                 );
             """)
 
+            # Admin-authored knowledge base entries (used live + exported to faq.md)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS kb_entries (
+                    id UUID PRIMARY KEY,
+                    question TEXT NOT NULL,
+                    answer TEXT NOT NULL,
+                    source TEXT NOT NULL DEFAULT 'admin',
+                    created_at TIMESTAMPTZ DEFAULT now(),
+                    updated_at TIMESTAMPTZ,
+                    exported_at TIMESTAMPTZ
+                );
+            """)
+
+            # "Mark resolved" support on existing chat_logs
+            cur.execute("""
+                ALTER TABLE chat_logs
+                ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+            """)
+
         self.conn.commit()
         print("✅ pgvector DB initialized")
