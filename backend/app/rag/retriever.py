@@ -54,6 +54,47 @@ class PgVectorRetriever:
             self.conn.rollback()
             raise
 
+    def upsert_vector(self, chunk: Dict):
+        """Insert or replace a single vector row (used for live admin KB edits)."""
+        try:
+            self._ensure_conn()
+            with self.conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO faq_embeddings (id, question, answer, text, embedding, metadata)
+                    VALUES (%s, %s, %s, %s, %s::vector, %s)
+                    ON CONFLICT (id) DO UPDATE SET
+                        question = EXCLUDED.question,
+                        answer = EXCLUDED.answer,
+                        text = EXCLUDED.text,
+                        embedding = EXCLUDED.embedding,
+                        metadata = EXCLUDED.metadata
+                    """,
+                    (
+                        chunk["id"],
+                        chunk["question"],
+                        chunk["answer"],
+                        chunk["text"],
+                        self._to_vector_literal(chunk["embedding"]),
+                        json.dumps(chunk.get("metadata", {})),
+                    ),
+                )
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
+    def delete_vector(self, vector_id: str):
+        """Remove a single vector row by id (used when an admin deletes a KB entry)."""
+        try:
+            self._ensure_conn()
+            with self.conn.cursor() as cur:
+                cur.execute("DELETE FROM faq_embeddings WHERE id = %s", (vector_id,))
+            self.conn.commit()
+        except Exception:
+            self.conn.rollback()
+            raise
+
     # -------------------------
     # VECTOR SEARCH
     # -------------------------
