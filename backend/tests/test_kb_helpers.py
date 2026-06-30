@@ -42,5 +42,24 @@ class TestKbHelpers(unittest.TestCase):
         self.assertEqual(out.count("## Q: "), 1)  # no duplicate question added
 
 
+from app.services.faq.kb import _validate_fields, MAX_FIELD_LEN  # noqa: E402
+
+
+class TestKbValidation(unittest.TestCase):
+    def test_rejects_empty(self):
+        with self.assertRaises(ValueError):
+            _validate_fields("  ", "answer")
+        with self.assertRaises(ValueError):
+            _validate_fields("question", "")
+
+    def test_rejects_too_long(self):
+        with self.assertRaises(ValueError):
+            _validate_fields("q", "a" * (MAX_FIELD_LEN + 1))
+
+    def test_accepts_and_strips(self):
+        q, a = _validate_fields("  hi  ", "  there  ")
+        self.assertEqual((q, a), ("hi", "there"))
+
+
 if __name__ == "__main__":
     unittest.main()

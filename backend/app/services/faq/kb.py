@@ -57,3 +57,69 @@ def render_faq_markdown(seed_text: str, kb_entries: List[Dict]) -> str:
     if not new_lines:
         return seed_text
     return seed_text.rstrip() + "\n\n# Source: admin\n\n" + "\n".join(new_lines).rstrip() + "\n"
+
+
+import uuid
+from datetime import datetime, timezone
+from sqlalchemy.orm import Session
+from app.db.models import KbEntry
+
+MAX_FIELD_LEN = 4000
+
+
+def _validate_fields(question: str, answer: str):
+    q = (question or "").strip()
+    a = (answer or "").strip()
+    if not q or not a:
+        raise ValueError("Question and answer are both required.")
+    if len(q) > MAX_FIELD_LEN or len(a) > MAX_FIELD_LEN:
+        raise ValueError(f"Question and answer must each be under {MAX_FIELD_LEN} characters.")
+    return q, a
+
+
+def _entry_to_dict(row: KbEntry) -> Dict:
+    return {
+        "id": str(row.id),
+        "question": row.question,
+        "answer": row.answer,
+        "source": row.source,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+        "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+        "exported_at": row.exported_at.isoformat() if row.exported_at else None,
+    }
+
+
+def create_kb_entry(db: Session, question: str, answer: str) -> Dict:
+    q, a = _validate_fields(question, answer)
+    row = KbEntry(id=uuid.uuid4(), question=q, answer=a, source="admin")
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _entry_to_dict(row)
+
+
+def list_kb_entries(db: Session, limit: int = 500) -> List[Dict]:
+    rows = db.query(KbEntry).order_by(KbEntry.created_at.desc()).limit(limit).all()
+    return [_entry_to_dict(r) for r in rows]
+
+
+def update_kb_entry(db: Session, entry_id: str, question: str, answer: str):
+    q, a = _validate_fields(question, answer)
+    row = db.query(KbEntry).filter(KbEntry.id == entry_id).first()
+    if not row:
+        return None
+    row.question = q
+    row.answer = a
+    row.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    return _entry_to_dict(row)
+
+
+def delete_kb_entry(db: Session, entry_id: str) -> bool:
+    row = db.query(KbEntry).filter(KbEntry.id == entry_id).first()
+    if not row:
+        return False
+    db.delete(row)
+    db.commit()
+    return True

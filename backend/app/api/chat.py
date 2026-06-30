@@ -51,4 +51,4 @@ def faq_logs(
 ):
     """View recent chat logs (admin only). ?unanswered=true shows only the gaps the bot couldn't answer."""
     limit = max(1, min(limit, 500))
-    return get_logs(db, unanswered_only=unanswered, limit=limit)
+    return get_logs(db, status="unanswered" if unanswered else "all", limit=limit)
