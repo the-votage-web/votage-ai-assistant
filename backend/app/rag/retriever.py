@@ -55,45 +55,81 @@ class PgVectorRetriever:
             raise
 
     def upsert_vector(self, chunk: Dict):
-        """Insert or replace a single vector row (used for live admin KB edits)."""
-        try:
-            self._ensure_conn()
-            with self.conn.cursor() as cur:
-                cur.execute(
-                    """
-                    INSERT INTO faq_embeddings (id, question, answer, text, embedding, metadata)
-                    VALUES (%s, %s, %s, %s, %s::vector, %s)
-                    ON CONFLICT (id) DO UPDATE SET
-                        question = EXCLUDED.question,
-                        answer = EXCLUDED.answer,
-                        text = EXCLUDED.text,
-                        embedding = EXCLUDED.embedding,
-                        metadata = EXCLUDED.metadata
-                    """,
-                    (
-                        chunk["id"],
-                        chunk["question"],
-                        chunk["answer"],
-                        chunk["text"],
-                        self._to_vector_literal(chunk["embedding"]),
-                        json.dumps(chunk.get("metadata", {})),
-                    ),
-                )
-            self.conn.commit()
-        except Exception:
-            self.conn.rollback()
-            raise
+        """Insert or replace a single vector row (used for live admin KB edits).
+
+        Reconnects and retries once if Neon has dropped the idle connection
+        (same self-healing behaviour as ``search``).
+        """
+        last_exc = None
+        for attempt in range(2):
+            try:
+                self._ensure_conn()
+                with self.conn.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO faq_embeddings (id, question, answer, text, embedding, metadata)
+                        VALUES (%s, %s, %s, %s, %s::vector, %s)
+                        ON CONFLICT (id) DO UPDATE SET
+                            question = EXCLUDED.question,
+                            answer = EXCLUDED.answer,
+                            text = EXCLUDED.text,
+                            embedding = EXCLUDED.embedding,
+                            metadata = EXCLUDED.metadata
+                        """,
+                        (
+                            chunk["id"],
+                            chunk["question"],
+                            chunk["answer"],
+                            chunk["text"],
+                            self._to_vector_literal(chunk["embedding"]),
+                            json.dumps(chunk.get("metadata", {})),
+                        ),
+                    )
+                self.conn.commit()
+                return
+            except (psycopg2.InterfaceError, psycopg2.OperationalError) as exc:
+                # Stale/broken connection — drop it, reconnect, and retry once.
+                last_exc = exc
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+                self.conn = self._connect()
+            except Exception:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                raise
+        raise last_exc
 
     def delete_vector(self, vector_id: str):
-        """Remove a single vector row by id (used when an admin deletes a KB entry)."""
-        try:
-            self._ensure_conn()
-            with self.conn.cursor() as cur:
-                cur.execute("DELETE FROM faq_embeddings WHERE id = %s", (vector_id,))
-            self.conn.commit()
-        except Exception:
-            self.conn.rollback()
-            raise
+        """Remove a single vector row by id (used when an admin deletes a KB entry).
+
+        Reconnects and retries once on a stale Neon connection.
+        """
+        last_exc = None
+        for attempt in range(2):
+            try:
+                self._ensure_conn()
+                with self.conn.cursor() as cur:
+                    cur.execute("DELETE FROM faq_embeddings WHERE id = %s", (vector_id,))
+                self.conn.commit()
+                return
+            except (psycopg2.InterfaceError, psycopg2.OperationalError) as exc:
+                last_exc = exc
+                try:
+                    self.conn.close()
+                except Exception:
+                    pass
+                self.conn = self._connect()
+            except Exception:
+                try:
+                    self.conn.rollback()
+                except Exception:
+                    pass
+                raise
+        raise last_exc
 
     # -------------------------
     # VECTOR SEARCH

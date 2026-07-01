@@ -192,13 +192,15 @@ class FAQService:
             return []
 
     def add_entry(self, entry: dict):
-        """Embed + upsert a KB entry and add it to the live in-memory chunks."""
+        """Add a KB entry to the live index. Updates the in-memory chunks first
+        (so the bot can answer holistically even if the vector write hiccups),
+        then mirrors it into the pgvector index for semantic ranking."""
         chunk = kb_entry_to_chunk(entry)
-        vector = self.embedder.embed(chunk["text"])
-        self.retriever.upsert_vector({**chunk, "embedding": vector, "metadata": {"source": chunk["source"]}})
         self._faq_chunks = [c for c in self._faq_chunks if c["id"] != chunk["id"]]
         self._faq_chunks.append(chunk)
         self._kb_vocab = self._build_vocab(self._faq_chunks)
+        vector = self.embedder.embed(chunk["text"])
+        self.retriever.upsert_vector({**chunk, "embedding": vector, "metadata": {"source": chunk["source"]}})
 
     def update_entry(self, entry: dict):
         """Re-embed and replace an existing KB entry (same id)."""
