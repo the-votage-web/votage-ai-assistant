@@ -17,6 +17,7 @@
 | **Answer behavior** | Confidently wrong on anything not in the KB | Answers church facts from the KB; gives warm general guidance for everyday questions; defers personal/pastoral & unknown church facts to an admin | Helpful *and* honest — never invents church facts |
 | **Question history** | Nothing captured — every question forgotten | Every question logged + an admin view of the unanswered gaps | See what the bot couldn't answer, and improve it |
 | **Security** | Chat-logs endpoint open to anyone | Requires a secret admin key (locked by default) | Visitors' questions/answers are protected |
+| **Admin workflow** | No UI — gaps could only be seen via a raw API call | An `/admin` page: log in, browse/filter chat history, write answers that go live instantly, export `faq.md` | The team can improve the bot anytime, from any machine, with no restart or deploy |
 
 _Details for each of these are in the sections below._
 
@@ -136,7 +137,35 @@ All against the **team's Neon database** (the connection string provided by the 
 
 ---
 
-## 5. Operational notes / gotchas
+## 5. Admin chat-history & knowledge review (branch `feature/admin-chat-history`) — APPLIED & tested
+
+**What it is:** a private `/admin` page where the tech team logs in (single shared password = the existing `ADMIN_API_KEY`), reviews every question visitors asked, filters by answered/unanswered, and **writes answers for the gaps**. A saved answer is used by the bot **immediately** — no restart, no redeploy.
+
+**Key design decision — answers are stored in the database, not `faq.md`:**
+Admin answers go into a new `kb_entries` table and are embedded into the existing `faq_embeddings` index. This is deliberate: the live/AWS backend and a local laptop share the same Neon database, and `faq.md` is git-tracked — so writing to `faq.md` at runtime would be overwritten (and lost) on the next deploy. DB storage is permanent and works from either machine. `faq.md` stays the git-managed "seed"; admin additions are a durable second layer. An **Export faq.md** button regenerates the complete, de-duplicated file so the team can commit it to git on their own schedule.
+
+**Code changes:**
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `backend/app/db/models.py` | Added `KbEntry` model; added `resolved_at` to `ChatLog` |
+| 2 | `backend/app/rag/db_init.py` | Startup DDL: `CREATE TABLE kb_entries`; `ALTER TABLE chat_logs ADD COLUMN resolved_at` |
+| 3 | `backend/app/services/faq/kb.py` | New: pure helpers (normalize/parse/chunk/export-render) + DB CRUD (create/list/update/delete) |
+| 4 | `backend/app/services/faq/logs.py` | `get_logs` now takes `status`+`q` (keyword) and returns `resolved_at`; added `mark_resolved` |
+| 5 | `backend/app/rag/retriever.py` | Added `upsert_vector` (insert-or-replace) and `delete_vector` |
+| 6 | `backend/app/services/faq/faq.py` | Loads `kb_entries` at startup; `add_entry`/`update_entry`/`remove_entry` update the live index; `read_seed_markdown` |
+| 7 | `backend/app/api/admin.py` | New admin router: `POST /admin/login`, `GET /admin/logs`, `GET/POST/PUT/DELETE /admin/kb`, `GET /admin/kb/export` (all gated by `X-Admin-Key`) |
+| 8 | `backend/app/api/chat.py` | Updated `/faq/logs` call to the new `get_logs(status=...)` signature |
+| 9 | `backend/app/main.py` | Registered the admin router |
+| 10 | `frontend/app/admin/page.tsx` + `admin.module.css` | New `/admin` page: login, history filter/search, answer/edit modal, KB management tab, export, sign out |
+
+**Database changes:** new table `kb_entries` (id, question, answer, source, created_at, updated_at, exported_at); new column `chat_logs.resolved_at`. Both created idempotently at startup.
+
+**Tests (all passing, 13):** `backend/tests/test_kb_helpers.py` (pure helpers + validation) and `backend/tests/test_admin_api.py` (FAQService live edits + admin auth gate). Verified end-to-end against the real Neon DB + OpenAI: full CRUD round-trip, admin API round-trip (create→list→export→delete), and the headline path — **an admin answer makes the bot answer a paraphrased question live**.
+
+---
+
+## 6. Operational notes / gotchas
 
 - **ProtonVPN must be OFF** while working locally — it blocks the Neon database connection (port 5432). This cost a lot of debugging time.
 - Run the backend with the venv (`backend/.venv`); the emoji crash is fixed in `main.py`.
