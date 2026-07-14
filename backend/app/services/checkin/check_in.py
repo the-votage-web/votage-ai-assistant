@@ -7,6 +7,7 @@ from app.db.config import settings
 from app.services.checkin.utils import _is_successful_checkin_response
 from app.common.service import _extract_service_type, _service_type_prompt
 from app.common.utils import find_member_by_phone
+from app.services.intake.logs import log_checkin_failure
 
 def handle_checkin(db: Session, session_id: str, message: str) -> str:
     chat_session = session.get_or_create_session(db, session_id)
@@ -39,6 +40,7 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
                 pending_phone,
                 "connect",
                 connect_name=chosen_connect_name,
+                session_id=session_id,
             )
             if _is_successful_checkin_response(response):
                 chat_state.pop("pending_checkin_phone", None)
@@ -58,7 +60,7 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
             state._save_state(db, chat_session, chat_state)
             return connect._connect_group_prompt()
 
-        response = _record_checkin(db, pending_phone, chosen_service_type)
+        response = _record_checkin(db, pending_phone, chosen_service_type, session_id=session_id)
         if _is_successful_checkin_response(response):
             chat_state.pop("pending_checkin_phone", None)
             chat_state.pop("pending_service_type", None)
@@ -91,7 +93,7 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
                 state._save_state(db, chat_session, chat_state)
                 return connect._connect_group_prompt()
 
-            response = _record_checkin(db, phone, "connect", connect_name=chosen_connect_name)
+            response = _record_checkin(db, phone, "connect", connect_name=chosen_connect_name, session_id=session_id)
             if _is_successful_checkin_response(response):
                 chat_state.pop("pending_checkin_phone", None)
                 chat_state.pop("pending_service_type", None)
@@ -101,7 +103,7 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
             state._save_state(db, chat_session, chat_state)
             return response
 
-        response = _record_checkin(db, phone, service_type)
+        response = _record_checkin(db, phone, service_type, session_id=session_id)
         if _is_successful_checkin_response(response):
             chat_state.pop("pending_checkin_phone", None)
             chat_state.pop("pending_service_type", None)
@@ -116,13 +118,15 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
         "To get started, please send your phone number (e.g. 08012345678)."
     )
 
-def _record_checkin(db: Session, phone: str, service_type: str, connect_name: Optional[str] = None) -> str:
+def _record_checkin(db: Session, phone: str, service_type: str, connect_name: Optional[str] = None, session_id: Optional[str] = None) -> str:
     member = find_member_by_phone(db, phone)
     if not member:
-        return (
+        message = (
             "👋 I don’t recognize that phone number yet.\n"
             f"Please register here first: {settings.REGISTRATION_PAGE_URL}"
         )
+        log_checkin_failure(session_id, "phone_not_registered", message, phone, service_type, connect_name)
+        return message
 
     member_display_name = f"{member.first_name} {member.last_name}".strip()
     effective_connect_name = connect_name if service_type == "connect" else None
@@ -130,13 +134,15 @@ def _record_checkin(db: Session, phone: str, service_type: str, connect_name: Op
         registered_connect = member.connect_name.strip()
         selected_connect = (effective_connect_name or "").strip()
         if registered_connect and selected_connect and registered_connect.lower() != selected_connect.lower():
-            return (
+            message = (
                 "❌ Connect check-in failed. "
                 f"Your registration is under {registered_connect}. "
                 f"You selected {selected_connect}. "
                 "Please select your registered connect group or contact an admin to update your profile.\n\n"
                 f"{connect._connect_group_prompt()}"
             )
+            log_checkin_failure(session_id, "connect_mismatch", message, phone, service_type, connect_name)
+            return message
 
     new = mark_attendance_for_service(
         db,
