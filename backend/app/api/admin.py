@@ -12,6 +12,7 @@ from app.services.faq.kb import (
     render_faq_markdown,
 )
 from app.services.faq.faq import faq_service
+from app.services.intake.logs import get_intake_issues, mark_intake_resolved
 
 router = APIRouter()
 
@@ -98,6 +99,21 @@ def admin_kb_delete(entry_id: str, db: Session = Depends(get_db), _admin: None =
         faq_service.remove_entry(entry_id)
     except Exception as exc:
         print(f"admin_kb_delete: live index update failed (row deleted): {exc!r}")
+    return {"ok": True}
+
+
+@router.get("/admin/intake-issues")
+def admin_intake_issues(kind: str = "all", q: Optional[str] = None, limit: int = 100,
+                        db: Session = Depends(get_db), _admin: None = Depends(require_admin)):
+    limit = max(1, min(limit, 500))
+    return get_intake_issues(db, kind=kind, q=q, limit=limit)
+
+
+@router.patch("/admin/intake-issues/{issue_id}/resolve")
+def admin_intake_resolve(issue_id: str, db: Session = Depends(get_db), _admin: None = Depends(require_admin)):
+    ok = mark_intake_resolved(db, issue_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Issue not found.")
     return {"ok": True}
 
 
