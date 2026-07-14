@@ -16,6 +16,22 @@ type Log = {
 type KbEntry = { id: string; question: string; answer: string };
 type Status = "all" | "answered" | "unanswered";
 
+type IntakeIssue = {
+  id: string;
+  kind: string;
+  reason: string | null;
+  message: string | null;
+  source: string;
+  http_status: number | null;
+  phone: string | null;
+  email: string | null;
+  name: string | null;
+  session_id: string | null;
+  resolved_at: string | null;
+  created_at: string | null;
+};
+type IssueKind = "all" | "checkin" | "registration";
+
 const KEY_STORAGE = "votage_admin_key";
 
 export default function AdminPage() {
@@ -23,11 +39,14 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [loginError, setLoginError] = useState("");
 
-  const [tab, setTab] = useState<"logs" | "kb">("logs");
+  const [tab, setTab] = useState<"logs" | "kb" | "issues">("logs");
   const [status, setStatus] = useState<Status>("unanswered");
   const [search, setSearch] = useState("");
   const [logs, setLogs] = useState<Log[]>([]);
   const [kb, setKb] = useState<KbEntry[]>([]);
+  const [issues, setIssues] = useState<IntakeIssue[]>([]);
+  const [issueKind, setIssueKind] = useState<IssueKind>("all");
+  const [issueSearch, setIssueSearch] = useState("");
   const [editing, setEditing] = useState<{ question: string; answer: string; fromLogId?: string; kbId?: string } | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -79,15 +98,22 @@ export default function AdminPage() {
         if (cancelled) return;
         if (res.status === 403) { signOut(); return; }
         if (res.ok) setLogs(await res.json());
-      } else {
+      } else if (tab === "kb") {
         const res = await fetch("/api/admin/kb", { headers: authHeaders() });
         if (cancelled) return;
         if (res.status === 403) { signOut(); return; }
         if (res.ok) setKb(await res.json());
+      } else {
+        const params = new URLSearchParams({ kind: issueKind, limit: "200" });
+        if (issueSearch.trim()) params.set("q", issueSearch.trim());
+        const res = await fetch(`/api/admin/intake-issues?${params.toString()}`, { headers: authHeaders() });
+        if (cancelled) return;
+        if (res.status === 403) { signOut(); return; }
+        if (res.ok) setIssues(await res.json());
       }
     })();
     return () => { cancelled = true; };
-  }, [adminKey, tab, status, search, refreshKey, authHeaders]);
+  }, [adminKey, tab, status, search, issueKind, issueSearch, refreshKey, authHeaders]);
 
   async function saveEntry() {
     if (!editing) return;
@@ -115,6 +141,12 @@ export default function AdminPage() {
 
   async function deleteEntry(id: string) {
     const res = await fetch(`/api/admin/kb/${id}`, { method: "DELETE", headers: authHeaders() });
+    if (res.status === 403) return signOut();
+    if (res.ok) refresh();
+  }
+
+  async function resolveIssue(id: string) {
+    const res = await fetch(`/api/admin/intake-issues/${id}/resolve`, { method: "PATCH", headers: authHeaders() });
     if (res.status === 403) return signOut();
     if (res.ok) refresh();
   }
@@ -168,6 +200,7 @@ export default function AdminPage() {
       <nav className={styles.tabs}>
         <button className={tab === "logs" ? styles.tabActive : styles.tab} onClick={() => setTab("logs")}>Chat history</button>
         <button className={tab === "kb" ? styles.tabActive : styles.tab} onClick={() => setTab("kb")}>Knowledge base</button>
+        <button className={tab === "issues" ? styles.tabActive : styles.tab} onClick={() => setTab("issues")}>Check-in &amp; registration issues</button>
       </nav>
 
       {tab === "logs" && (
@@ -231,6 +264,48 @@ export default function AdminPage() {
           ))}
           {kb.length === 0 && <p className={styles.empty}>No admin entries yet.</p>}
         </div>
+      )}
+
+      {tab === "issues" && (
+        <>
+          <div className={styles.controls}>
+            {(["all", "checkin", "registration"] as IssueKind[]).map((k) => (
+              <button key={k} className={issueKind === k ? styles.chipActive : styles.chip} onClick={() => setIssueKind(k)}>
+                {k}
+              </button>
+            ))}
+            <input
+              value={issueSearch}
+              onChange={(e) => setIssueSearch(e.target.value)}
+              placeholder="Search phone / email / name..."
+              className={styles.search}
+            />
+          </div>
+          <div className={styles.list}>
+            {issues.map((it) => (
+              <div key={it.id} className={styles.row}>
+                <div className={styles.rowMain}>
+                  <p className={styles.q}>
+                    {it.kind} · {it.reason}
+                    {it.http_status ? ` · HTTP ${it.http_status}` : ""} · {it.source}
+                  </p>
+                  <p className={styles.a}>{it.message}</p>
+                  <div className={styles.meta}>
+                    {it.name && <span className={styles.date}>{it.name}</span>}
+                    {it.phone && <span className={styles.date}>📞 {it.phone}</span>}
+                    {it.email && <span className={styles.date}>✉ {it.email}</span>}
+                    {it.resolved_at && <span className={styles.badgeResolved}>handled</span>}
+                    <span className={styles.date}>{it.created_at?.slice(0, 16).replace("T", " ")}</span>
+                  </div>
+                </div>
+                {!it.resolved_at && (
+                  <button className={styles.secondaryBtn} onClick={() => void resolveIssue(it.id)}>Mark handled</button>
+                )}
+              </div>
+            ))}
+            {issues.length === 0 && <p className={styles.empty}>No issues in this view yet.</p>}
+          </div>
+        </>
       )}
 
       {editing && (
