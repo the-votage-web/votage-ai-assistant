@@ -62,5 +62,24 @@ class DBInitializer:
                 ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
             """)
 
+            # Failed registrations / check-ins captured for admin review
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS intake_issues (
+                    id UUID PRIMARY KEY,
+                    kind TEXT NOT NULL,
+                    reason TEXT,
+                    message TEXT,
+                    source TEXT NOT NULL DEFAULT 'server',
+                    http_status INTEGER,
+                    phone TEXT,
+                    email TEXT,
+                    name TEXT,
+                    details TEXT,
+                    session_id TEXT,
+                    created_at TIMESTAMPTZ DEFAULT now(),
+                    resolved_at TIMESTAMPTZ
+                );
+            """)
+
         self.conn.commit()
         print("✅ pgvector DB initialized")

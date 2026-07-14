@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import String, Date, DateTime, ForeignKey, UniqueConstraint, func, Text, Boolean, Float
+from sqlalchemy import String, Date, DateTime, ForeignKey, UniqueConstraint, func, Text, Boolean, Float, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from typing import Optional
@@ -117,3 +117,22 @@ class KbEntry(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     exported_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class IntakeIssue(Base):
+    """A failed registration or check-in, captured for admin review.
+    kind=checkin|registration; source=client|server."""
+    __tablename__ = "intake_issues"
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    reason: Mapped[Optional[str]] = mapped_column(String(40), nullable=True)
+    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(10), nullable=False, default="server")
+    http_status: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    email: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    name: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    details: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    session_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
