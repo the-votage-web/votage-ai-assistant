@@ -165,7 +165,63 @@ Admin answers go into a new `kb_entries` table and are embedded into the existin
 
 ---
 
-## 6. Operational notes / gotchas
+## 6. Check-in & registration error feedback (branch `feature/admin-chat-history`) — APPLIED & tested
+
+**What it is:** an observability layer that records every **failed** registration and
+check-in — the exact error the user saw plus the details they tried to use — into a
+new `intake_issues` table, reviewable in a new admin tab. Requested by the team lead
+after Sunday sign-in failures couldn't be reproduced. **Capture + review only** — no
+changes to user-facing messages or the sign-in flows.
+
+**Captured at the layer where the error is truthful:**
+- **Visible popup/banner errors** (the red notice on the registration form; the chat
+  widget's error states) — including "code-like but readable" 500s and errors that
+  never reach our clean handlers (422 validation, proxy/network/rate-limit) — are
+  reported by the **frontend** (the exact on-screen text) to a public
+  `POST /api/intake-issues/report`. `reason` is derived server-side from the HTTP
+  status (`409`→`phone_exists`, `422`→`validation_error`, `>=500`→`server_error`, else `ui_error`).
+- **Silent check-in dead-ends** (unrecognized phone, connect-group mismatch) are
+  *normal bot replies*, so they're captured **server-side** in `_record_checkin`.
+
+**Code changes:**
+
+| # | File | Change |
+|---|------|--------|
+| 1 | `backend/app/db/models.py` | Added `IntakeIssue` model (+ `Integer` import) |
+| 2 | `backend/app/rag/db_init.py` | Startup DDL: `CREATE TABLE intake_issues` |
+| 3 | `backend/app/services/intake/logs.py` | New: `derive_reason`, `report_intake_issue`, `log_checkin_failure`, `get_intake_issues`, `mark_intake_resolved` (defensive, own DB session) |
+| 4 | `backend/app/services/checkin/check_in.py` | Thread `session_id` into `_record_checkin`; log the two failure returns |
+| 5 | `backend/app/api/intake.py` | New public `POST /api/intake-issues/report` |
+| 6 | `backend/app/api/admin.py` | `GET /admin/intake-issues`, `PATCH /admin/intake-issues/{id}/resolve` |
+| 7 | `backend/app/main.py` | Registered the intake router |
+| 8 | `frontend/lib/reportIssue.ts` | New best-effort client reporter |
+| 9 | `frontend/app/register/page.tsx` | Report the registration error banner + submitted form |
+| 10 | `frontend/components/ChatWidget.tsx` | Report check-in widget errors (guarded to the check-in instance) |
+| 11 | `frontend/app/admin/page.tsx` | Third "Check-in & registration issues" tab: filter by kind, search phone/email/name, **Mark handled** |
+
+**Database changes:** new table `intake_issues` (id, kind, reason, message, source,
+http_status, phone, email, name, details, session_id, created_at, resolved_at),
+created idempotently at startup.
+
+**Privacy:** rows contain member PII (name, email, phone) — same sensitivity as the
+`members` table, admin-gated behind the shared password. The report endpoint is
+public (visitors call it) and insert-only into an admin-viewable table; message and
+fields are length-capped. Flagged by an automated security review as
+"sensitive-to-observability" — this is by design (the team explicitly wants the
+details used to sign in), and the data travels the same network path the
+registration POST already uses (no new exposure channel).
+
+**Tests (all passing, 22 backend total):** `tests/test_intake.py` (reason derivation
++ admin auth-gate). Verified end-to-end against the real Neon DB: a client-reported
+registration failure and a real unregistered-phone check-in both appear in the admin
+tab with correct kinds/reasons; kind filters and "Mark handled" work.
+
+**Deferred:** Slack forwarding (capture path kept reusable); any user-facing message
+changes (e.g. "you're already registered — please check in").
+
+---
+
+## 7. Operational notes / gotchas
 
 - **ProtonVPN must be OFF** while working locally — it blocks the Neon database connection (port 5432). This cost a lot of debugging time.
 - Run the backend with the venv (`backend/.venv`); the emoji crash is fixed in `main.py`.
