@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { reportIssue } from "@/lib/reportIssue";
 
 type Msg = { role: "user" | "ai"; text: string };
 type QuickAction = { label: string; message: string };
@@ -183,16 +184,20 @@ export default function ChatWidget({
     } catch (err) {
       const busyMessage =
         "I’m receiving too many requests right now. Please try again in a minute.";
-      setMsgs((m) => [
-        ...m,
-        {
-          role: "ai",
-          text:
-            err instanceof Error && err.message === "SERVICE_BUSY"
-              ? busyMessage
-              : "Sorry — I couldn’t reach the server. Please try again.",
-        },
-      ]);
+      const shown =
+        err instanceof Error && err.message === "SERVICE_BUSY"
+          ? busyMessage
+          : "Sorry — I couldn’t reach the server. Please try again.";
+      setMsgs((m) => [...m, { role: "ai", text: shown }]);
+      if (apiUrl.includes("checkin")) {
+        void reportIssue({
+          kind: "checkin",
+          message: shown,
+          httpStatus: err instanceof Error && err.message === "SERVICE_BUSY" ? 503 : undefined,
+          sessionId,
+          details: { typed: text },
+        });
+      }
     } finally {
       setBusy(false);
     }

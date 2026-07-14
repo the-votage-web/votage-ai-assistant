@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import styles from "./register.module.css";
 import ChatWidget from "@/components/ChatWidget";
+import { reportIssue } from "@/lib/reportIssue";
 
 const DEFAULT_CONNECT_OPTIONS = [
   "KABOD CONNECT",
@@ -70,6 +71,7 @@ export default function RegisterPage() {
     setBusy(true);
     setNotice(null);
 
+    let httpStatus: number | undefined;
     try {
       const normalizedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
       const payload = {
@@ -89,6 +91,7 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      httpStatus = res.status;
 
       if (!res.ok) {
         let message = "Registration failed. Please try again.";
@@ -116,9 +119,22 @@ export default function RegisterPage() {
       });
       setTimeout(() => router.push("/"), 1200);
     } catch (err) {
-      setNotice({
-        type: "error",
-        text: err instanceof Error ? err.message : "Registration failed",
+      const text = err instanceof Error ? err.message : "Registration failed";
+      setNotice({ type: "error", text });
+      void reportIssue({
+        kind: "registration",
+        message: text,
+        httpStatus,
+        details: {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone_number: phoneNumber,
+          gender,
+          marital_status: maritalStatus,
+          service_type: serviceType,
+          connect_name: showConnect ? connectName : null,
+        },
       });
     } finally {
       setBusy(false);
