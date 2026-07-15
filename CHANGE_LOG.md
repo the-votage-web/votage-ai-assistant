@@ -18,8 +18,9 @@
 | **Question history** | Nothing captured — every question forgotten | Every question logged + an admin view of the unanswered gaps | See what the bot couldn't answer, and improve it |
 | **Security** | Chat-logs endpoint open to anyone | Requires a secret admin key (locked by default) | Visitors' questions/answers are protected |
 | **Admin workflow** | No UI — gaps could only be seen via a raw API call | An `/admin` page: log in, browse/filter chat history, write answers that go live instantly, export `faq.md` | The team can improve the bot anytime, from any machine, with no restart or deploy |
+| **Sign-in error feedback** | When someone failed to register or check in on Sunday, there was no record — we couldn't reproduce or diagnose it | Every failed registration/check-in is captured (the exact error the person saw + the details they typed) and shown in a new admin tab, with "Mark handled" | We can finally see and fix Sunday sign-in problems instead of guessing — the feedback system the team asked for |
 
-_Details for each of these are in the sections below._
+_Details for each of these are in the sections below (see §6)._
 
 ---
 
