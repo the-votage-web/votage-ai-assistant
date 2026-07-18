@@ -36,8 +36,9 @@ jobs:
         run: |
           docker buildx build \
             --platform linux/amd64 \
+            -f backend/Dockerfile \
             -t ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest \
-            --load .
+            --load backend
 
       - name: Push Docker image
         run: |
