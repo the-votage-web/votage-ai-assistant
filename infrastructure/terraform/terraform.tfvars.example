@@ -1,0 +1,3 @@
+project_name = "votage-ai-assistant"
+environment  = "dev"
+aws_region   = "eu-north-1"
