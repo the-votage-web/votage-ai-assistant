@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import date
 from sqlalchemy.orm import Session
 from app.common import session, state, connect
 from app.common.llm.llm import extract
@@ -7,6 +8,10 @@ from app.db.config import settings
 from app.services.checkin.utils import _is_successful_checkin_response
 from app.common.service import _extract_service_type, _service_type_prompt
 from app.common.utils import find_member_by_phone
+
+def _is_sunday() -> bool:
+    """Check if today is Sunday (weekday() returns 6 for Sunday)."""
+    return date.today().weekday() == 6
 
 def handle_checkin(db: Session, session_id: str, message: str) -> str:
     chat_session = session.get_or_create_session(db, session_id)
@@ -49,9 +54,18 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
             state._save_state(db, chat_session, chat_state)
             return response
 
-        chosen_service_type = _extract_service_type(message, ex.service_type)
+        # Auto-detect service type: use sunday_service on Sundays if no service type specified
+        if not pending_service_type and _is_sunday():
+            chosen_service_type = "sunday_service"
+        else:
+            chosen_service_type = _extract_service_type(message, ex.service_type)
+        
+        # On non-Sundays, require explicit service type
         if not chosen_service_type:
-            return _service_type_prompt()
+            return (
+                "Automatic check-in is only available on Sundays for sunday_service. "
+                "For other services, please specify the service type (connect, special_service, etc.)"
+            )
 
         if chosen_service_type == "connect":
             chat_state["pending_service_type"] = "connect"
@@ -71,17 +85,26 @@ def handle_checkin(db: Session, session_id: str, message: str) -> str:
     # 2. Start new check-in flow
     if ex.intent == "checkin":
         phone = ex.phone
-        service_type = _extract_service_type(message, ex.service_type)
         
         # If user didn't provide phone, ask
         if not phone:
             return "Please send your phone number (e.g. 08012345678) to check in."
 
-        if not service_type:
-            chat_state["pending_checkin_phone"] = phone
-            chat_state.pop("pending_service_type", None)
-            state._save_state(db, chat_session, chat_state)
-            return _service_type_prompt()
+        # Auto-detect service type: use sunday_service on Sundays
+        if _is_sunday():
+            service_type = "sunday_service"
+        else:
+            service_type = _extract_service_type(message, ex.service_type)
+            # On non-Sundays, require explicit service type
+            if not service_type:
+                chat_state["pending_checkin_phone"] = phone
+                chat_state.pop("pending_service_type", None)
+                state._save_state(db, chat_session, chat_state)
+                return (
+                    "Please choose a service type to complete check-in:\n"
+                    "- connect\n"
+                    "- special_service"
+                )
 
         if service_type == "connect":
             chosen_connect_name = connect._extract_connect_name(message)
