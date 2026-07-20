@@ -98,7 +98,6 @@ function isServiceTypePrompt(text: string) {
   return (
     normalized.includes("choose a service type") ||
     (normalized.includes("service type") &&
-      normalized.includes("sunday_service") &&
       normalized.includes("connect") &&
       normalized.includes("special_service"))
   );

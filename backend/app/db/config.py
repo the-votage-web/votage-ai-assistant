@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     MEMBERS_COLLECTION: str = "members"
     DOCS_COLLECTION: str = "church_docs"
 
-    FRONTEND_URL: str = "http://localhost:3000"
-    REGISTRATION_PAGE_URL: str = "http://localhost:3000/register"
+    FRONTEND_URL: str
+    REGISTRATION_PAGE_URL: str = "${FRONTEND_URL}/register"
     SUNDAY_CODE: str = "change-me"  # set via env in production
 
     CORS_ORIGINS: str = "http://localhost:3000"
