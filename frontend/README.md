@@ -29,6 +29,30 @@ This frontend now uses Prisma with a baseline migration in `prisma/migrations/20
 - In deployment environments, apply committed migrations with `npm run prisma:migrate:deploy`.
 - `npm run prisma:db:push` is available for local-only syncs, but migrations should be the default for shared environments.
 
+### Existing Production Database Baseline
+
+If Prisma reports `P3005` on the first production deploy, that means the database already contains tables and Prisma has not been told to treat the initial migration as already applied.
+
+Run this once against the production database:
+
+```bash
+npx prisma migrate resolve --applied 20260727_init
+```
+
+Then run deploy again:
+
+```bash
+npm run prisma:migrate:deploy
+```
+
+If production already has the `attendance.checkin_code` column and unique index too, also mark the follow-up migration as applied:
+
+```bash
+npx prisma migrate resolve --applied 20260727_z_add_attendance_checkin_code
+```
+
+If `checkin_code` is not in production yet, do not mark that second migration as applied. Let `npm run prisma:migrate:deploy` apply it normally after the baseline step.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
