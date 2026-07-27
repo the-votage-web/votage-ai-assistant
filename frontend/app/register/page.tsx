@@ -3,10 +3,11 @@
 import Link from "next/link";
 import PhoneInput from "react-phone-input-2";
 import "react-phone-input-2/lib/style.css";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import styles from "./register.module.css";
 import ChatWidget from "@/components/ChatWidget";
+import { reportIssue } from "@/lib/reportIssue";
 
 const DEFAULT_CONNECT_OPTIONS = [
   "KABOD CONNECT",
@@ -21,6 +22,7 @@ const DEFAULT_SERVICE_OPTIONS = ["sunday_service", "connect", "special_service"]
 
 export default function RegisterPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const base = process.env.NEXT_PUBLIC_API_BASE || "";
   const [activeTab, setActiveTab] = useState<"checkin" | "register">("checkin");
   const [busy, setBusy] = useState(false);
@@ -38,6 +40,23 @@ export default function RegisterPage() {
   const [connectName, setConnectName] = useState(DEFAULT_CONNECT_OPTIONS[0]);
 
   const showConnect = useMemo(() => serviceType === "connect", [serviceType]);
+
+  useEffect(() => {
+    const tab = searchParams.get("tab");
+    setActiveTab(tab === "register" || tab === "registration" ? "register" : "checkin");
+  }, [searchParams]);
+
+  function switchTab(tab: "checkin" | "register") {
+    setActiveTab(tab);
+    const params = new URLSearchParams(searchParams.toString());
+    if (tab === "register") {
+      params.set("tab", "registration");
+    } else {
+      params.delete("tab");
+    }
+    const query = params.toString();
+    router.replace(query ? `/register?${query}` : "/register");
+  }
 
   useEffect(() => {
     async function loadOptions() {
@@ -70,6 +89,7 @@ export default function RegisterPage() {
     setBusy(true);
     setNotice(null);
 
+    let httpStatus: number | undefined;
     try {
       const normalizedPhone = phoneNumber.startsWith("+") ? phoneNumber : `+${phoneNumber}`;
       const payload = {
@@ -89,19 +109,28 @@ export default function RegisterPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      httpStatus = res.status;
 
       if (!res.ok) {
         let message = "Registration failed. Please try again.";
         try {
-          const body = (await res.json()) as { detail?: string; message?: string };
+          const body = (await res.json()) as {
+            detail?: string;
+            message?: string;
+            error?: string;
+            phoneNumber?: string;
+          };
           message = body.detail || body.message || message;
+          if (body.error === "duplicate" && body.phoneNumber) {
+            message = body.detail || `A member with these details already exists. Use ${body.phoneNumber} to check in.`;
+          }
         } catch {
           // Ignore JSON parsing errors and keep default message.
         }
         throw new Error(message);
       }
 
-      const data = (await res.json()) as { ok: boolean; message: string };
+      const data = (await res.json()) as { ok: boolean; message: string; checkinCode?: string };
       setFirstName("");
       setLastName("");
       setEmail("");
@@ -116,9 +145,22 @@ export default function RegisterPage() {
       });
       setTimeout(() => router.push("/"), 1200);
     } catch (err) {
-      setNotice({
-        type: "error",
-        text: err instanceof Error ? err.message : "Registration failed",
+      const text = err instanceof Error ? err.message : "Registration failed";
+      setNotice({ type: "error", text });
+      void reportIssue({
+        kind: "registration",
+        message: text,
+        httpStatus,
+        details: {
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone_number: phoneNumber,
+          gender,
+          marital_status: maritalStatus,
+          service_type: serviceType,
+          connect_name: showConnect ? connectName : null,
+        },
       });
     } finally {
       setBusy(false);
@@ -166,13 +208,13 @@ export default function RegisterPage() {
 
         <nav className={styles.tabs}>
           <button
-            onClick={() => setActiveTab("checkin")}
+            onClick={() => switchTab("checkin")}
             className={`${styles.tabButton} ${activeTab === "checkin" ? styles.tabButtonActive : ""}`}
           >
             Check-in
           </button>
           <button
-            onClick={() => setActiveTab("register")}
+            onClick={() => switchTab("register")}
             className={`${styles.tabButton} ${activeTab === "register" ? styles.tabButtonActive : ""}`}
           >
             New Member Registration

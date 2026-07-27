@@ -1,0 +1,59 @@
+name: Deploy Frontend Prod
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend-prod.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-frontend-prod
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Build And Deploy Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      CI: true
+      DATABASE_URL: ${{ secrets.FRONTEND_DATABASE_URL }}
+      OPENAI_API_KEY: ${{ secrets.FRONTEND_OPENAI_API_KEY }}
+      OPENAI_CHAT_MODEL: ${{ secrets.FRONTEND_OPENAI_CHAT_MODEL }}
+      OPENAI_EMBED_MODEL: ${{ secrets.FRONTEND_OPENAI_EMBED_MODEL }}
+      ADMIN_API_KEY: ${{ secrets.FRONTEND_ADMIN_API_KEY }}
+      FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+      DEFAULT_PHONE_REGION: ${{ secrets.FRONTEND_DEFAULT_PHONE_REGION }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npm run prisma:generate
+
+      - name: Apply Prisma migrations
+        run: npm run prisma:migrate:deploy
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Trigger Vercel deploy hook
+        run: curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"

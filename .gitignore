@@ -1,38 +1,35 @@
-# =====================
-# Python
-# =====================
-backend/venv/
-backend/.venv/
-backend/__pycache__/
-backend/**/*.pyc
+# env files
+.env
 backend/.env
-
-# =====================
-# Node
-# =====================
-frontend/node_modules/
-frontend/dist/
+backend/.env.local
 frontend/.env
+frontend/.env.local
 
-# =====================
-# Terraform
-# =====================
-**/.terraform/
-*.tfstate
-*.tfstate.*
-terraform.tfvars
-*.tfvars
+# virtual env
+backend/.venv/
+backend/venv/
 
-# Keep lock file
-!**/.terraform.lock.hcl
 
-# =====================
+# python cache
+__pycache__/
+backend/app/__pycache__/
+*.pyc
+
+# node
+node_modules/
+
+# local source documents (church PDFs/txt) — the content lives in faq.md instead
+backend/app/data/docs/
 # macOS
-# =====================
 .DS_Store
+**/.DS_Store
 
-# =====================
-# IDE
-# =====================
-.vscode/
-.idea/
+# Next.js
+frontend/.next/
+frontend/.turbo/
+
+# Terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
+infrastructure/terraform/*.tfstate.*
+infrastructure/terraform/*.tfvars
