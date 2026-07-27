@@ -2,8 +2,8 @@ import { getDatabaseUrl } from "./database-url";
 
 import * as PrismaModule from "@prisma/client";
 
-const { PrismaClient } = PrismaModule as {
-  PrismaClient: new (options: { datasources: { db: { url: string } } }) => unknown;
+const { PrismaClient } = PrismaModule as unknown as {
+  PrismaClient: new (options?: unknown) => Record<PropertyKey, unknown>;
 };
 
 const globalForPrisma = globalThis as typeof globalThis & {
@@ -17,7 +17,7 @@ function createPrismaClient() {
         url: getDatabaseUrl(),
       },
     },
-  });
+  }) as Record<PropertyKey, unknown>;
 }
 
 export function getPrisma() {
