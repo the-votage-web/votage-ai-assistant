@@ -20,6 +20,10 @@ type RegistrationPayload = {
 
 const VALID_GENDERS = new Set(["male", "female"]);
 const VALID_MARITAL_STATUSES = new Set(["single", "married", "divorced", "widowed"]);
+const memberDuplicateSelect = {
+  id: true,
+  phoneNumber: true,
+} as const;
 
 function hasPrismaErrorCode(error: unknown, code: string) {
   return (
@@ -105,6 +109,7 @@ async function findExistingMember(phoneNumber: string, email: string) {
     findMemberByPhone(phoneNumber),
     prisma.member.findFirst({
       where: { email },
+      select: memberDuplicateSelect,
     }),
   ]);
 
@@ -211,6 +216,9 @@ export async function POST(req: Request) {
           maritalStatus: validated.maritalStatus,
           firstTimer: true,
           connectName: validated.connectName,
+        },
+        select: {
+          id: true,
         },
       });
 
