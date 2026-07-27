@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { MouseEvent, useEffect, useMemo, useRef, useState } from "react";
+import { reportIssue } from "@/lib/reportIssue";
 
 type Msg = { role: "user" | "ai"; text: string };
 type QuickAction = { label: string; message: string };
@@ -25,72 +27,85 @@ const CONNECT_TYPE_ACTIONS: QuickAction[] = [
   { label: "Ekehuan", message: "EKEHUAN CONNECT" },
 ];
 
+function normalizeMissingMemberReply(text: string) {
+  const markdownRegisterUrl = text.match(/\((https?:\/\/[^\s)]+\/register(?:\?[^\s)]*)?)\)/)?.[1];
+  const plainRegisterUrl = text.match(/https?:\/\/[^\s)]+\/register(?:\?[^\s)]*)?/)?.[0];
+  const registerUrl = markdownRegisterUrl || plainRegisterUrl;
+  const looksLikeMissingMember =
+    /recognize that phone number|couldn't find a member record|register here first/i.test(text) ||
+    (Boolean(registerUrl) &&
+      text
+        .replace(/\[[^\]]*\]\((https?:\/\/[^\s)]+)\)/g, "$1")
+        .trim() === registerUrl);
 
-function linkifyText(text: string) {
-  // Regex to match [text](url) or raw http(s) URLs
-  const regex = /(\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|https?:\/\/[^\s]+)/g;
-  
-  const parts = text.split(regex);
-  const result = [];
-  
-  // The split with capturing groups in the regex will result in:
-  // [normal text, full match, link text, link url, raw url, ...]
-  // We need to iterate carefully.
-  
-  let i = 0;
-  while (i < parts.length) {
-    const part = parts[i];
-    
-    if (part === undefined) {
-      i++;
-      continue;
-    }
-
-    // This is a bit tricky because split with multiple capturing groups
-    // includes all capturing groups in the output.
-    // Index mapping for our regex:
-    // i: normal text
-    // i+1: full markdown match (e.g. "[Link](url)")
-    // i+2: link text (e.g. "Link")
-    // i+3: link url (e.g. "url")
-    // i+4: raw url match (if not markdown)
-    
-    if (i + 1 < parts.length && parts[i+1]?.startsWith('[')) {
-      // Markdown link
-      result.push(
-        <a
-          key={i}
-          href={parts[i+3]}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: "#0057b8", textDecoration: "underline" }}
-        >
-          {parts[i+2]}
-        </a>
-      );
-      i += 4; // Skip the captured groups
-    } else if (i + 1 < parts.length && parts[i+1]?.startsWith('http')) {
-      // Raw URL (if our regex was different, but let's simplify)
-      result.push(
-        <a
-          key={i}
-          href={parts[i+1]}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ color: "#0057b8", textDecoration: "underline" }}
-        >
-          {parts[i+1]}
-        </a>
-      );
-      i += 4;
-    } else {
-      // Normal text
-      if (part) result.push(part);
-      i++;
-    }
+  if (!registerUrl || !looksLikeMissingMember) {
+    return text;
   }
-  
-  return result;
+
+  return `👋 I don’t recognize that phone number yet.\nPlease register here first: ${registerUrl}`;
+}
+
+
+function isInternalUrl(url: string) {
+  if (typeof window === "undefined") return false;
+  try {
+    const resolved = new URL(url, window.location.origin);
+    return resolved.origin === window.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+function toAppPath(url: string) {
+  if (typeof window === "undefined") return url;
+  const resolved = new URL(url, window.location.origin);
+  return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+}
+
+function linkifyText(
+  text: string,
+  onInternalNavigate: (url: string, event: MouseEvent<HTMLAnchorElement>) => void
+) {
+  const regex = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s]+)/g;
+  const result: Array<string | React.ReactElement> = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(text)) !== null) {
+    const [fullMatch, markdownLabel, markdownUrl, rawUrl] = match;
+    const start = match.index;
+
+    if (start > lastIndex) {
+      result.push(text.slice(lastIndex, start));
+    }
+
+    const href = markdownUrl || rawUrl;
+    const label = markdownLabel || href;
+    const internal = isInternalUrl(href);
+
+    result.push(
+      <a
+        key={`${href}-${start}`}
+        href={href}
+        target={internal ? undefined : "_blank"}
+        rel={internal ? undefined : "noopener noreferrer"}
+        onClick={(event) => {
+          if (internal) onInternalNavigate(href, event);
+        }}
+        style={{ color: "#0057b8", textDecoration: "underline" }}
+      >
+        {label}
+      </a>
+    );
+
+    lastIndex = start + fullMatch.length;
+  }
+
+  if (lastIndex < text.length) {
+    result.push(text.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : [text];
 }
 
 function isServiceTypePrompt(text: string) {
@@ -98,6 +113,7 @@ function isServiceTypePrompt(text: string) {
   return (
     normalized.includes("choose a service type") ||
     (normalized.includes("service type") &&
+      normalized.includes("sunday_service") &&
       normalized.includes("connect") &&
       normalized.includes("special_service"))
   );
@@ -140,6 +156,7 @@ export default function ChatWidget({
   welcomeMessage?: string;
   containerStyle?: React.CSSProperties;
 }) {
+  const router = useRouter();
   const sessionId = useMemo(() => crypto.randomUUID(), []);
   const [busy, setBusy] = useState(false);
   const [input, setInput] = useState("");
@@ -154,6 +171,11 @@ export default function ChatWidget({
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [msgs]);
+
+  function handleInternalNavigate(url: string, event: MouseEvent<HTMLAnchorElement>) {
+    event.preventDefault();
+    router.push(toAppPath(url));
+  }
 
   async function sendText(raw: string) {
     const text = raw.trim();
@@ -178,20 +200,26 @@ export default function ChatWidget({
         throw new Error("Request failed");
       }
       const { reply } = (await res.json()) as { reply: string };
-      setMsgs((m) => [...m, { role: "ai", text: reply }]);
+      const normalizedReply =
+        apiUrl.includes("checkin") ? normalizeMissingMemberReply(reply) : reply;
+      setMsgs((m) => [...m, { role: "ai", text: normalizedReply }]);
     } catch (err) {
       const busyMessage =
         "I’m receiving too many requests right now. Please try again in a minute.";
-      setMsgs((m) => [
-        ...m,
-        {
-          role: "ai",
-          text:
-            err instanceof Error && err.message === "SERVICE_BUSY"
-              ? busyMessage
-              : "Sorry — I couldn’t reach the server. Please try again.",
-        },
-      ]);
+      const shown =
+        err instanceof Error && err.message === "SERVICE_BUSY"
+          ? busyMessage
+          : "Sorry — I couldn’t reach the server. Please try again.";
+      setMsgs((m) => [...m, { role: "ai", text: shown }]);
+      if (apiUrl.includes("checkin")) {
+        void reportIssue({
+          kind: "checkin",
+          message: shown,
+          httpStatus: err instanceof Error && err.message === "SERVICE_BUSY" ? 503 : undefined,
+          sessionId,
+          details: { typed: text },
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -307,7 +335,7 @@ export default function ChatWidget({
                       lineHeight: 1.35,
                     }}
                   >
-                    {linkifyText(m.text)}
+                    {linkifyText(m.text, handleInternalNavigate)}
                   </div>
                 </div>
 
