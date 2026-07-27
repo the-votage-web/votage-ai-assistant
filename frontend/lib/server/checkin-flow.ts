@@ -3,9 +3,9 @@ import { buildCheckinCode } from "./checkin-code";
 import { DEFAULT_CONNECT_OPTIONS, DEFAULT_SERVICE_OPTIONS, ServiceType } from "./constants";
 import { logCheckinFailure } from "./intake";
 import { findMemberByPhone } from "./phone";
-import { prisma } from "./prisma";
+import { prisma, type PrismaTransactionClient } from "./prisma";
 
-type TxClient = typeof prisma;
+type TxClient = PrismaTransactionClient;
 
 type SessionState = {
   pending_checkin_phone?: string;
