@@ -1,9 +1,17 @@
 import { Member } from "@prisma/client";
-import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { CountryCode, parsePhoneNumberFromString } from "libphonenumber-js";
 import { prisma } from "./prisma";
 
 function digitsOnly(value: string) {
   return value.replace(/\D/g, "");
+}
+
+function getDefaultPhoneRegion(): CountryCode {
+  const region = process.env.DEFAULT_PHONE_REGION?.trim().toUpperCase();
+  if (region && /^[A-Z]{2}$/.test(region)) {
+    return region as CountryCode;
+  }
+  return "NG";
 }
 
 export function normalizePhone(phone: string) {
@@ -15,7 +23,7 @@ export function normalizePhone(phone: string) {
   const candidate = raw.startsWith("00") ? `+${raw.slice(2)}` : raw;
   const parsed =
     parsePhoneNumberFromString(candidate) ||
-    parsePhoneNumberFromString(candidate, process.env.DEFAULT_PHONE_REGION || "NG");
+    parsePhoneNumberFromString(candidate, getDefaultPhoneRegion());
 
   if (parsed?.isValid()) {
     const e164 = parsed.number;
