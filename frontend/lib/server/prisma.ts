@@ -2,35 +2,43 @@ import { getDatabaseUrl } from "./database-url";
 
 import * as PrismaModule from "@prisma/client";
 
+type PrismaClientInstance =
+  import("../../node_modules/.prisma/client/index").PrismaClient;
+
+export type PrismaTransactionClient = Omit<
+  PrismaClientInstance,
+  "$connect" | "$disconnect" | "$on" | "$transaction" | "$extends"
+>;
+
 const { PrismaClient } = PrismaModule as unknown as {
-  PrismaClient: new (options?: unknown) => Record<PropertyKey, unknown>;
+  PrismaClient: new (options?: unknown) => PrismaClientInstance;
 };
 
 const globalForPrisma = globalThis as typeof globalThis & {
-  prisma?: any;
+  prisma?: PrismaClientInstance;
 };
 
-function createPrismaClient() {
+function createPrismaClient(): PrismaClientInstance {
   return new PrismaClient({
     datasources: {
       db: {
         url: getDatabaseUrl(),
       },
     },
-  }) as Record<PropertyKey, unknown>;
+  });
 }
 
-export function getPrisma() {
+export function getPrisma(): PrismaClientInstance {
   if (!globalForPrisma.prisma) {
     globalForPrisma.prisma = createPrismaClient();
   }
   return globalForPrisma.prisma;
 }
 
-export const prisma: any = new Proxy({}, {
+export const prisma: PrismaClientInstance = new Proxy({} as PrismaClientInstance, {
   get(_target, prop) {
     const client = getPrisma();
-    const value = (client as Record<PropertyKey, unknown>)[prop];
+    const value = client[prop as keyof PrismaClientInstance];
     return typeof value === "function" ? value.bind(client) : value;
   },
 });

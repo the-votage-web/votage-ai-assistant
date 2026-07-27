@@ -3,9 +3,9 @@ import { NextResponse } from "next/server";
 import { buildCheckinCode } from "@/lib/server/checkin-code";
 import { DEFAULT_SERVICE_OPTIONS, ServiceType } from "@/lib/server/constants";
 import { findMemberByPhone, normalizePhoneForStorage } from "@/lib/server/phone";
-import { prisma } from "@/lib/server/prisma";
+import { prisma, type PrismaTransactionClient } from "@/lib/server/prisma";
 
-type TxClient = typeof prisma;
+type TxClient = PrismaTransactionClient;
 
 type RegistrationPayload = {
   first_name?: string;

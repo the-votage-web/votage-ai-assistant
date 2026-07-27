@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - next-server
     paths:
       - "frontend/**"
       - ".github/workflows/deploy-frontend-prod.yml"
