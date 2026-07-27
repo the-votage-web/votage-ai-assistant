@@ -1,6 +1,16 @@
 import { CountryCode, parsePhoneNumberFromString } from "libphonenumber-js";
 import { prisma } from "./prisma";
 
+const memberLookupSelect = {
+  id: true,
+  firstName: true,
+  lastName: true,
+  phoneNumber: true,
+  email: true,
+  firstTimer: true,
+  connectName: true,
+} as const;
+
 function digitsOnly(value: string) {
   return value.replace(/\D/g, "");
 }
@@ -46,6 +56,7 @@ export async function findMemberByPhone(phone: string) {
 
   const exact = await prisma.member.findFirst({
     where: { phoneNumber: raw },
+    select: memberLookupSelect,
   });
   if (exact) {
     return exact;
@@ -63,6 +74,7 @@ export async function findMemberByPhone(phone: string) {
             endsWith: last10,
           },
         },
+        select: memberLookupSelect,
       })
     : [];
 
