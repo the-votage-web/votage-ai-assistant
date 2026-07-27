@@ -1,4 +1,3 @@
-import * as PrismaModule from "@prisma/client";
 import { randomUUID } from "crypto";
 import { buildCheckinCode } from "./checkin-code";
 import { DEFAULT_CONNECT_OPTIONS, DEFAULT_SERVICE_OPTIONS, ServiceType } from "./constants";
@@ -6,16 +5,21 @@ import { logCheckinFailure } from "./intake";
 import { findMemberByPhone } from "./phone";
 import { prisma } from "./prisma";
 
-const { PrismaClientKnownRequestError } = PrismaModule as {
-  PrismaClientKnownRequestError: new (...args: never[]) => { code?: string };
-};
-
 type TxClient = typeof prisma;
 
 type SessionState = {
   pending_checkin_phone?: string;
   pending_service_type?: ServiceType | null;
 };
+
+function hasPrismaErrorCode(error: unknown, code: string) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
 
 function currentServiceDate() {
   const now = new Date();
@@ -177,7 +181,7 @@ async function markFirstTimerEvent(memberId: string, serviceId: string | null, s
       },
     });
   } catch (error) {
-    if (!(error instanceof PrismaClientKnownRequestError) || error.code !== "P2002") {
+    if (!hasPrismaErrorCode(error, "P2002")) {
       throw error;
     }
   }

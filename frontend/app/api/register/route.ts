@@ -1,14 +1,9 @@
-import * as PrismaModule from "@prisma/client";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { buildCheckinCode } from "@/lib/server/checkin-code";
 import { DEFAULT_SERVICE_OPTIONS, ServiceType } from "@/lib/server/constants";
 import { findMemberByPhone, normalizePhoneForStorage } from "@/lib/server/phone";
 import { prisma } from "@/lib/server/prisma";
-
-const { PrismaClientKnownRequestError } = PrismaModule as {
-  PrismaClientKnownRequestError: new (...args: never[]) => { code?: string };
-};
 
 type TxClient = typeof prisma;
 
@@ -25,6 +20,15 @@ type RegistrationPayload = {
 
 const VALID_GENDERS = new Set(["male", "female"]);
 const VALID_MARITAL_STATUSES = new Set(["single", "married", "divorced", "widowed"]);
+
+function hasPrismaErrorCode(error: unknown, code: string) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code?: unknown }).code === code
+  );
+}
 
 function currentServiceDate() {
   const now = new Date();
@@ -247,7 +251,7 @@ export async function POST(req: Request) {
       checkinCode: created.attendance.checkinCode,
     });
   } catch (error) {
-    if (error instanceof PrismaClientKnownRequestError && error.code === "P2002") {
+    if (hasPrismaErrorCode(error, "P2002")) {
       const duplicate = await findExistingMember(validated.phoneNumber, validated.email);
       return NextResponse.json(
         {
