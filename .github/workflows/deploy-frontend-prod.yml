@@ -23,12 +23,12 @@ jobs:
     env:
       CI: true
       DATABASE_URL: ${{ secrets.FRONTEND_DATABASE_URL }}
-      OPENAI_API_KEY: ${{ secrets.FRONTEND_OPENAI_API_KEY }}
-      OPENAI_CHAT_MODEL: ${{ secrets.FRONTEND_OPENAI_CHAT_MODEL }}
-      OPENAI_EMBED_MODEL: ${{ secrets.FRONTEND_OPENAI_EMBED_MODEL }}
-      ADMIN_API_KEY: ${{ secrets.FRONTEND_ADMIN_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      OPENAI_CHAT_MODEL: ${{ secrets.OPENAI_CHAT_MODEL }}
+      OPENAI_EMBED_MODEL: ${{ secrets.OPENAI_EMBED_MODEL }}
+      ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
       FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
-      DEFAULT_PHONE_REGION: ${{ secrets.FRONTEND_DEFAULT_PHONE_REGION }}
+      DEFAULT_PHONE_REGION: ${{ secrets.DEFAULT_PHONE_REGION }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
