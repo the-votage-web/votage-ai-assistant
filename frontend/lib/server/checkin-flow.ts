@@ -1,10 +1,16 @@
-import { Prisma } from "@prisma/client";
+import * as PrismaModule from "@prisma/client";
 import { randomUUID } from "crypto";
 import { buildCheckinCode } from "./checkin-code";
 import { DEFAULT_CONNECT_OPTIONS, DEFAULT_SERVICE_OPTIONS, ServiceType } from "./constants";
 import { logCheckinFailure } from "./intake";
 import { findMemberByPhone } from "./phone";
 import { prisma } from "./prisma";
+
+const { PrismaClientKnownRequestError } = PrismaModule as {
+  PrismaClientKnownRequestError: new (...args: never[]) => { code?: string };
+};
+
+type TxClient = typeof prisma;
 
 type SessionState = {
   pending_checkin_phone?: string;
@@ -65,7 +71,7 @@ async function getConnectOptions() {
     distinct: ["name"],
     orderBy: { name: "asc" },
   });
-  const merged = [...dbGroups.map((group) => group.name), ...DEFAULT_CONNECT_OPTIONS];
+  const merged = [...dbGroups.map((group: { name: string }) => group.name), ...DEFAULT_CONNECT_OPTIONS];
   return Array.from(new Set(merged.map((name) => name.trim()).filter(Boolean)));
 }
 
@@ -90,7 +96,7 @@ function extractPhone(message: string) {
   return match?.[0]?.trim() ?? null;
 }
 
-async function getOrCreateService(tx: Prisma.TransactionClient, serviceType: ServiceType) {
+async function getOrCreateService(tx: TxClient, serviceType: ServiceType) {
   const existing = await tx.service.findFirst({
     where: {
       name: {
@@ -111,7 +117,7 @@ async function getOrCreateService(tx: Prisma.TransactionClient, serviceType: Ser
   });
 }
 
-async function getOrCreateConnectGroup(tx: Prisma.TransactionClient, serviceId: string, connectName: string) {
+async function getOrCreateConnectGroup(tx: TxClient, serviceId: string, connectName: string) {
   const existing = await tx.connectGroup.findFirst({
     where: {
       name: {
@@ -171,7 +177,7 @@ async function markFirstTimerEvent(memberId: string, serviceId: string | null, s
       },
     });
   } catch (error) {
-    if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+    if (!(error instanceof PrismaClientKnownRequestError) || error.code !== "P2002") {
       throw error;
     }
   }
@@ -254,7 +260,7 @@ async function recordCheckin(sessionId: string, phone: string, serviceType: Serv
     return `You’re already checked in for ${label} today, ${memberDisplayName}. Your check-in code is ${code}.`;
   }
 
-  const attendance = await prisma.$transaction(async (tx) => {
+  const attendance = await prisma.$transaction(async (tx: TxClient) => {
     const service = await getOrCreateService(tx, serviceType);
     if (serviceType === "connect" && effectiveConnectName) {
       await getOrCreateConnectGroup(tx, service.id, effectiveConnectName);

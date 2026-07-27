@@ -1,8 +1,13 @@
-import { PrismaClient } from "@prisma/client";
 import { getDatabaseUrl } from "./database-url";
 
+import * as PrismaModule from "@prisma/client";
+
+const { PrismaClient } = PrismaModule as {
+  PrismaClient: new (options: { datasources: { db: { url: string } } }) => unknown;
+};
+
 const globalForPrisma = globalThis as typeof globalThis & {
-  prisma?: PrismaClient;
+  prisma?: any;
 };
 
 function createPrismaClient() {
@@ -22,10 +27,10 @@ export function getPrisma() {
   return globalForPrisma.prisma;
 }
 
-export const prisma = new Proxy({} as PrismaClient, {
+export const prisma: any = new Proxy({}, {
   get(_target, prop) {
     const client = getPrisma();
-    const value = (client as unknown as Record<PropertyKey, unknown>)[prop];
+    const value = (client as Record<PropertyKey, unknown>)[prop];
     return typeof value === "function" ? value.bind(client) : value;
   },
 });

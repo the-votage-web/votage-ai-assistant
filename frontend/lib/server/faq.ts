@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { randomUUID } from "crypto";
 import fs from "fs";
 import path from "path";
@@ -183,7 +182,7 @@ async function readKbChunks() {
     take: 500,
   });
 
-  return entries.map((entry) => ({
+  return entries.map((entry: { id: string; source: string | null; question: string; answer: string }) => ({
     id: `admin:${entry.id}`,
     source: entry.source || "admin",
     question: entry.question,
@@ -221,16 +220,7 @@ async function createEmbedding(input: string) {
 
 async function vectorSearch(embedding: number[], topK: number) {
   const vectorLiteral = `[${embedding.map((value) => Number(value).toString()).join(",")}]`;
-  const rows = await prisma.$queryRawUnsafe<
-    Array<{
-      id: string;
-      question: string | null;
-      answer: string | null;
-      text: string | null;
-      metadata: Prisma.JsonValue | null;
-      score: number | null;
-    }>
-  >(
+  const rows = (await prisma.$queryRawUnsafe(
     `
       SELECT id, question, answer, text, metadata,
              1 - (embedding <=> $1::vector) AS score
@@ -241,11 +231,25 @@ async function vectorSearch(embedding: number[], topK: number) {
     `,
     vectorLiteral,
     topK
-  );
+  )) as Array<{
+    id: string;
+    question: string | null;
+    answer: string | null;
+    text: string | null;
+    metadata: unknown;
+    score: number | null;
+  }>;
 
   return rows
-    .filter((row) => row.question && row.answer)
-    .map((row) => ({
+    .filter((row: { question: string | null; answer: string | null }) => row.question && row.answer)
+    .map((row: {
+      id: string;
+      question: string | null;
+      answer: string | null;
+      text: string | null;
+      metadata: unknown;
+      score: number | null;
+    }) => ({
       id: row.id,
       source:
         row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata)
@@ -401,12 +405,12 @@ async function askWithMeta(question: string): Promise<ChatResult> {
   try {
     const queryEmbedding = await createEmbedding(question);
     const vectorContext = await vectorSearch(queryEmbedding, useWideContext ? 10 : 6);
-    const topScore = Math.max(...vectorContext.map((chunk) => chunk.score ?? 0), 0);
+    const topScore = Math.max(...vectorContext.map((chunk: FaqChunk) => chunk.score ?? 0), 0);
     const relevant = mergeContexts(question, vectorContext, lexicalContext, useWideContext ? 12 : 7);
-    const seen = new Set(relevant.map((chunk) => `${chunk.question}\u0000${chunk.answer}`));
+    const seen = new Set(relevant.map((chunk: FaqChunk) => `${chunk.question}\u0000${chunk.answer}`));
     const context = [
       ...relevant,
-      ...allChunks.filter((chunk) => !seen.has(`${chunk.question}\u0000${chunk.answer}`)),
+      ...allChunks.filter((chunk: FaqChunk) => !seen.has(`${chunk.question}\u0000${chunk.answer}`)),
     ];
     const answer = await generateAnswer(question, context);
 

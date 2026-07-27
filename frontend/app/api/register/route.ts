@@ -1,10 +1,16 @@
-import { Prisma } from "@prisma/client";
+import * as PrismaModule from "@prisma/client";
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { buildCheckinCode } from "@/lib/server/checkin-code";
 import { DEFAULT_SERVICE_OPTIONS, ServiceType } from "@/lib/server/constants";
 import { findMemberByPhone, normalizePhoneForStorage } from "@/lib/server/phone";
 import { prisma } from "@/lib/server/prisma";
+
+const { PrismaClientKnownRequestError } = PrismaModule as {
+  PrismaClientKnownRequestError: new (...args: never[]) => { code?: string };
+};
+
+type TxClient = typeof prisma;
 
 type RegistrationPayload = {
   first_name?: string;
@@ -101,7 +107,7 @@ async function findExistingMember(phoneNumber: string, email: string) {
   return byPhone ?? byEmail;
 }
 
-async function getOrCreateService(tx: Prisma.TransactionClient, serviceType: ServiceType) {
+async function getOrCreateService(tx: TxClient, serviceType: ServiceType) {
   const existing = await tx.service.findFirst({
     where: {
       name: {
@@ -122,7 +128,7 @@ async function getOrCreateService(tx: Prisma.TransactionClient, serviceType: Ser
   });
 }
 
-async function getOrCreateConnectGroup(tx: Prisma.TransactionClient, serviceId: string, connectName: string) {
+async function getOrCreateConnectGroup(tx: TxClient, serviceId: string, connectName: string) {
   const existing = await tx.connectGroup.findFirst({
     where: {
       name: {
@@ -185,7 +191,7 @@ export async function POST(req: Request) {
 
   try {
     const serviceDate = currentServiceDate();
-    const created = await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx: TxClient) => {
       const service = await getOrCreateService(tx, validated.serviceType);
       if (validated.serviceType === "connect" && validated.connectName) {
         await getOrCreateConnectGroup(tx, service.id, validated.connectName);
@@ -241,7 +247,7 @@ export async function POST(req: Request) {
       checkinCode: created.attendance.checkinCode,
     });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (error instanceof PrismaClientKnownRequestError && error.code === "P2002") {
       const duplicate = await findExistingMember(validated.phoneNumber, validated.email);
       return NextResponse.json(
         {

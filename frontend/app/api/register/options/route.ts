@@ -18,14 +18,14 @@ export async function GET() {
 
   const allowed = new Set(DEFAULT_SERVICE_OPTIONS);
   const serviceTypes = services
-    .map((service) => service.name.trim().toLowerCase())
-    .filter((service) => allowed.has(service as (typeof DEFAULT_SERVICE_OPTIONS)[number]));
+    .map((service: { name: string }) => service.name.trim().toLowerCase())
+    .filter((service: string) => allowed.has(service as (typeof DEFAULT_SERVICE_OPTIONS)[number]));
 
   return NextResponse.json({
     service_types: serviceTypes.length > 0 ? Array.from(new Set(serviceTypes)) : [...DEFAULT_SERVICE_OPTIONS],
     connect_groups:
       connectGroups.length > 0
-        ? Array.from(new Set(connectGroups.map((group) => group.name.trim()).filter(Boolean)))
+        ? Array.from(new Set(connectGroups.map((group: { name: string }) => group.name.trim()).filter(Boolean)))
         : [...DEFAULT_CONNECT_OPTIONS],
   });
 }

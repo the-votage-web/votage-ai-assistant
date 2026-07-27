@@ -1,4 +1,3 @@
-import { Member } from "@prisma/client";
 import { CountryCode, parsePhoneNumberFromString } from "libphonenumber-js";
 import { prisma } from "./prisma";
 
@@ -68,7 +67,7 @@ export async function findMemberByPhone(phone: string) {
     : [];
 
   return (
-    candidates.find((member: Member) => {
+    candidates.find((member: { phoneNumber: string }) => {
       const normalized = normalizePhone(member.phoneNumber);
       if (e164 && normalized.e164 && normalized.e164 === e164) {
         return true;
