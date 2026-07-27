@@ -6,8 +6,10 @@ const { PrismaClient } = PrismaModule as unknown as {
   PrismaClient: new (options?: unknown) => Record<PropertyKey, unknown>;
 };
 
+type PrismaClientInstance = ReturnType<typeof createPrismaClient>;
+
 const globalForPrisma = globalThis as typeof globalThis & {
-  prisma?: any;
+  prisma?: PrismaClientInstance;
 };
 
 function createPrismaClient() {
@@ -27,7 +29,7 @@ export function getPrisma() {
   return globalForPrisma.prisma;
 }
 
-export const prisma: any = new Proxy({}, {
+export const prisma: PrismaClientInstance = new Proxy({} as PrismaClientInstance, {
   get(_target, prop) {
     const client = getPrisma();
     const value = (client as Record<PropertyKey, unknown>)[prop];
