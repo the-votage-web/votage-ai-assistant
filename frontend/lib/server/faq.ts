@@ -30,6 +30,15 @@ const answerCache = new Map<string, { expiresAt: number; value: string }>();
 const CACHE_TTL_MS = 15 * 60 * 1000;
 const CACHE_MAX_ENTRIES = 300;
 
+function hasPrismaErrorCode(error: unknown, ...codes: string[]) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    codes.includes(String((error as { code?: unknown }).code))
+  );
+}
+
 function normalizeToken(token: string) {
   const value = token.toLowerCase().trim();
   if (value.length > 4 && value.endsWith("ies")) return `${value.slice(0, -3)}y`;
@@ -177,10 +186,18 @@ function readSeedFaqChunks() {
 }
 
 async function readKbChunks() {
-  const entries = await prisma.kb_entries.findMany({
-    orderBy: { created_at: "desc" },
-    take: 500,
-  });
+  let entries: Array<{ id: string; source: string | null; question: string; answer: string }> = [];
+  try {
+    entries = await prisma.kb_entries.findMany({
+      orderBy: { created_at: "desc" },
+      take: 500,
+    });
+  } catch (error) {
+    if (!hasPrismaErrorCode(error, "P2021", "P2022")) {
+      throw error;
+    }
+    return [];
+  }
 
   return entries.map((entry: { id: string; source: string | null; question: string; answer: string }) => ({
     id: `admin:${entry.id}`,
@@ -220,25 +237,41 @@ async function createEmbedding(input: string) {
 
 async function vectorSearch(embedding: number[], topK: number) {
   const vectorLiteral = `[${embedding.map((value) => Number(value).toString()).join(",")}]`;
-  const rows = (await prisma.$queryRawUnsafe(
-    `
-      SELECT id, question, answer, text, metadata,
-             1 - (embedding <=> $1::vector) AS score
-      FROM faq_embeddings
-      WHERE embedding IS NOT NULL
-      ORDER BY embedding <=> $1::vector
-      LIMIT $2
-    `,
-    vectorLiteral,
-    topK
-  )) as Array<{
+  let rows: Array<{
     id: string;
     question: string | null;
     answer: string | null;
     text: string | null;
     metadata: unknown;
     score: number | null;
-  }>;
+  }> = [];
+
+  try {
+    rows = (await prisma.$queryRawUnsafe(
+      `
+        SELECT id, question, answer, text, metadata,
+               1 - (embedding <=> $1::vector) AS score
+        FROM faq_embeddings
+        WHERE embedding IS NOT NULL
+        ORDER BY embedding <=> $1::vector
+        LIMIT $2
+      `,
+      vectorLiteral,
+      topK
+    )) as Array<{
+      id: string;
+      question: string | null;
+      answer: string | null;
+      text: string | null;
+      metadata: unknown;
+      score: number | null;
+    }>;
+  } catch (error) {
+    if (!hasPrismaErrorCode(error, "P2021", "P2022")) {
+      throw error;
+    }
+    return [];
+  }
 
   return rows
     .filter((row: { question: string | null; answer: string | null }) => row.question && row.answer)
@@ -327,6 +360,9 @@ async function logChat(sessionId: string, question: string, answer: string, answ
         answer,
         answered,
         top_score: topScore,
+      },
+      select: {
+        id: true,
       },
     });
   } catch (error) {
