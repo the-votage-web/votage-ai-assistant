@@ -16,6 +16,13 @@ model Member {
   createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   gender                String?                 @db.VarChar(32)
   maritalStatus         String?                 @map("marital_status") @db.VarChar(32)
+  address               String?                 @db.VarChar(255)
+  dateOfBirth           DateTime?               @map("date_of_birth") @db.Date
+  employmentStatus      String?                 @map("employment_status") @db.VarChar(32)
+  heardAboutChurch      String?                 @map("heard_about_church") @db.VarChar(32)
+  heardAboutChurchOther String?                 @map("heard_about_church_other") @db.VarChar(120)
+  purposeOfAttending    String?
+  wouldLikeToBeMember   String?                 @map("would_like_to_be_member") @db.VarChar(16)
   firstTimer            Boolean                 @map("first_timer")
   connectName           String?                 @map("connect_name") @db.VarChar(80)
   dateJoined            DateTime                @default(now()) @map("date_joined") @db.Timestamptz(6)

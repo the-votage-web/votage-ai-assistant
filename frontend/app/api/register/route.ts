@@ -4,6 +4,7 @@ import { buildCheckinCode } from "@/lib/server/checkin-code";
 import { DEFAULT_SERVICE_OPTIONS, ServiceType } from "@/lib/server/constants";
 import { findMemberByPhone, normalizePhoneForStorage } from "@/lib/server/phone";
 import { prisma, type PrismaTransactionClient } from "@/lib/server/prisma";
+import { rateLimit } from "@/lib/server/security";
 
 type TxClient = PrismaTransactionClient;
 
@@ -169,6 +170,11 @@ async function getOrCreateConnectGroup(tx: TxClient, serviceId: string, connectN
 }
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "register", 8, 15 * 60_000);
+  if (limited) {
+    return limited;
+  }
+
   let payload: RegistrationPayload;
   try {
     payload = (await req.json()) as RegistrationPayload;
@@ -273,7 +279,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json(
       {
-        detail: error instanceof Error ? `Registration failed: ${error.message}` : "Registration failed.",
+        detail: "Registration failed. Please try again shortly.",
       },
       { status: 500 },
     );
