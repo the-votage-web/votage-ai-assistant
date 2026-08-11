@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { reportIntakeIssue } from "@/lib/server/intake";
+import { rateLimit, validateMessageLength, validateSessionId } from "@/lib/server/security";
 
 type IssueReportPayload = {
   kind?: string;
@@ -10,6 +11,11 @@ type IssueReportPayload = {
 };
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "intake-report", 10, 15 * 60_000);
+  if (limited) {
+    return limited;
+  }
+
   let payload: IssueReportPayload;
   try {
     payload = (await req.json()) as IssueReportPayload;
@@ -17,7 +23,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ detail: "Invalid intake issue payload." }, { status: 400 });
   }
 
-  if (typeof payload.message !== "string" || !payload.message.trim()) {
+  if (typeof payload.message !== "string" || !validateMessageLength(payload.message.trim(), 1000)) {
     return NextResponse.json({ detail: "message is required." }, { status: 422 });
   }
 
@@ -26,7 +32,10 @@ export async function POST(req: Request) {
     message: payload.message.trim(),
     httpStatus: typeof payload.http_status === "number" ? payload.http_status : null,
     details: payload.details ?? null,
-    sessionId: typeof payload.session_id === "string" ? payload.session_id : null,
+    sessionId:
+      typeof payload.session_id === "string" && validateSessionId(payload.session_id)
+        ? payload.session_id
+        : null,
   });
 
   return NextResponse.json({ ok: true });

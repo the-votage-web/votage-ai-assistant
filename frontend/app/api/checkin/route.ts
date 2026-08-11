@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleCheckin } from "@/lib/server/checkin-flow";
+import { rateLimit, validateMessageLength, validateSessionId } from "@/lib/server/security";
 
 type CheckinPayload = {
   session_id?: string;
@@ -7,6 +8,11 @@ type CheckinPayload = {
 };
 
 export async function POST(req: Request) {
+  const limited = rateLimit(req, "checkin", 15, 60_000);
+  if (limited) {
+    return limited;
+  }
+
   let payload: CheckinPayload;
   try {
     payload = (await req.json()) as CheckinPayload;
@@ -17,8 +23,11 @@ export async function POST(req: Request) {
   const sessionId = typeof payload.session_id === "string" ? payload.session_id.trim() : "";
   const message = typeof payload.message === "string" ? payload.message.trim() : "";
 
-  if (!sessionId || !message) {
-    return NextResponse.json({ detail: "session_id and message are required." }, { status: 422 });
+  if (!validateSessionId(sessionId) || !validateMessageLength(message, 500)) {
+    return NextResponse.json(
+      { detail: "session_id and message are required and must be valid." },
+      { status: 422 },
+    );
   }
 
   const reply = await handleCheckin(sessionId, message);
