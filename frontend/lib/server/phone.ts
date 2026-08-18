@@ -8,6 +8,9 @@ const memberLookupSelect = {
   phoneNumber: true,
   email: true,
   firstTimer: true,
+  isWorker: true,
+  department: true,
+  departmentId: true,
   connectName: true,
 } as const;
 

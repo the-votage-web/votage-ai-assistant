@@ -11,13 +11,28 @@ import ChatWidget from "@/components/ChatWidget";
 import { reportIssue } from "@/lib/reportIssue";
 
 const DEFAULT_CONNECT_OPTIONS = [
-  "KABOD CONNECT",
-  "NEWNESS CONNECT",
-  "UGBOWO CONNECT",
-  "FLOURISH CONNECT",
-  "GATEKEEPERS CONNECT",
-  "KOINONIA CONNECT",
-  "EKEHUAN CONNECT",
+  "KABOD",
+  "NEWNESS",
+  "EKEHUAN",
+  "FLOURISH",
+  "GATEKEEPERS",
+  "KOINONIA",
+  "UGBOWO",
+];
+const DEFAULT_DEPARTMENT_OPTIONS = [
+  "RMG",
+  "Media",
+  "Technical",
+  "Ushering",
+  "Welfare",
+  "VIP",
+  "Prayer",
+  "Votage_Act",
+  "Protocol",
+  "Sanitation",
+  "Pastorate",
+  "Digital_Communication",
+  "Others",
 ];
 const DEFAULT_SERVICE_OPTIONS = ["sunday_service", "connect", "special_service"];
 
@@ -30,6 +45,7 @@ function RegisterPageContent() {
   const [notice, setNotice] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [serviceOptions, setServiceOptions] = useState<string[]>(DEFAULT_SERVICE_OPTIONS);
   const [connectOptions, setConnectOptions] = useState<string[]>(DEFAULT_CONNECT_OPTIONS);
+  const [departmentOptions] = useState<string[]>(DEFAULT_DEPARTMENT_OPTIONS);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -37,10 +53,18 @@ function RegisterPageContent() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [gender, setGender] = useState("male");
   const [maritalStatus, setMaritalStatus] = useState("single");
+  const [isWorker, setIsWorker] = useState(false);
+  const [department, setDepartment] = useState(DEFAULT_DEPARTMENT_OPTIONS[0]);
+  const [customDepartment, setCustomDepartment] = useState("");
   const [serviceType, setServiceType] = useState("sunday_service");
   const [connectName, setConnectName] = useState(DEFAULT_CONNECT_OPTIONS[0]);
 
   const showConnect = useMemo(() => serviceType === "connect", [serviceType]);
+  const showDepartment = useMemo(() => showConnect && isWorker, [showConnect, isWorker]);
+  const selectedDepartment = useMemo(
+    () => (showDepartment ? (department === "Others" ? customDepartment.trim() : department) : null),
+    [customDepartment, department, showDepartment],
+  );
 
   useEffect(() => {
     const tab = searchParams.get("tab");
@@ -100,6 +124,8 @@ function RegisterPageContent() {
         phone_number: normalizedPhone,
         gender,
         marital_status: maritalStatus,
+        is_worker: isWorker,
+        department: selectedDepartment,
         service_type: serviceType,
         connect_name: showConnect ? connectName : null,
       };
@@ -138,6 +164,9 @@ function RegisterPageContent() {
       setPhoneNumber("");
       setGender("male");
       setMaritalStatus("single");
+      setIsWorker(false);
+      setDepartment(DEFAULT_DEPARTMENT_OPTIONS[0]);
+      setCustomDepartment("");
       setServiceType("sunday_service");
       setConnectName(connectOptions[0] ?? DEFAULT_CONNECT_OPTIONS[0]);
       setNotice({
@@ -159,6 +188,8 @@ function RegisterPageContent() {
           phone_number: phoneNumber,
           gender,
           marital_status: maritalStatus,
+          is_worker: isWorker,
+          department: selectedDepartment,
           service_type: serviceType,
           connect_name: showConnect ? connectName : null,
         },
@@ -281,8 +312,8 @@ function RegisterPageContent() {
               </label>
 
               <div className={styles.rowTwo}>
-                <label className={styles.field}>
-                  <span className={styles.label}>Gender</span>
+              <label className={styles.field}>
+                <span className={styles.label}>Gender</span>
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value)}
@@ -322,6 +353,45 @@ function RegisterPageContent() {
                   ))}
                 </select>
               </label>
+
+              {showConnect && (
+                <label className={styles.field}>
+                  <span className={styles.label}>Are you a worker?</span>
+                  <select
+                    value={isWorker ? "yes" : "no"}
+                    onChange={(e) => setIsWorker(e.target.value === "yes")}
+                    className={styles.control}
+                  >
+                    <option value="no">No</option>
+                    <option value="yes">Yes</option>
+                  </select>
+                </label>
+              )}
+
+              {showDepartment && (
+                <label className={styles.field}>
+                  <span className={styles.label}>Department</span>
+                  <select value={department} onChange={(e) => setDepartment(e.target.value)} className={styles.control}>
+                    {departmentOptions.map((option) => (
+                      <option key={option} value={option}>
+                        {option}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+
+              {showDepartment && department === "Others" && (
+                <label className={styles.field}>
+                  <span className={styles.label}>Custom department</span>
+                  <input
+                    required
+                    value={customDepartment}
+                    onChange={(e) => setCustomDepartment(e.target.value)}
+                    className={styles.control}
+                  />
+                </label>
+              )}
 
               {showConnect && (
                 <label className={styles.field}>

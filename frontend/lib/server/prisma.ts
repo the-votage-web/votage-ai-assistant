@@ -2,8 +2,7 @@ import { getDatabaseUrl } from "./database-url";
 
 import * as PrismaModule from "@prisma/client";
 
-type PrismaClientInstance =
-  import("../../node_modules/.prisma/client/index").PrismaClient;
+type PrismaClientInstance = InstanceType<typeof PrismaModule.PrismaClient>;
 
 export type PrismaTransactionClient = Omit<
   PrismaClientInstance,

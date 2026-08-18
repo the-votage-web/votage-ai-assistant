@@ -17,14 +17,43 @@ const SERVICE_TYPE_ACTIONS: QuickAction[] = [
   { label: "Connect", message: "connect" },
   { label: "Special Service", message: "special_service" },
 ];
+const WORKER_STATUS_ACTIONS: QuickAction[] = [
+  { label: "Yes", message: "yes" },
+  { label: "No", message: "no" },
+];
 const CONNECT_TYPE_ACTIONS: QuickAction[] = [
-  { label: "Kabod", message: "KABOD CONNECT" },
-  { label: "Newness", message: "NEWNESS CONNECT" },
-  { label: "Ugbowo", message: "UGBOWO CONNECT" },
-  { label: "Flourish", message: "FLOURISH CONNECT" },
-  { label: "Gatekeepers", message: "GATEKEEPERS CONNECT" },
-  { label: "Koinonia", message: "KOINONIA CONNECT" },
-  { label: "Ekehuan", message: "EKEHUAN CONNECT" },
+  { label: "Kabod", message: "KABOD" },
+  { label: "Newness", message: "NEWNESS" },
+  { label: "Ekehuan", message: "EKEHUAN" },
+  { label: "Flourish", message: "FLOURISH" },
+  { label: "Gatekeepers", message: "GATEKEEPERS" },
+  { label: "Koinonia", message: "KOINONIA" },
+  { label: "Ugbowo", message: "UGBOWO" },
+];
+const DEPARTMENT_ACTIONS: QuickAction[] = [
+  { label: "RMG", message: "RMG" },
+  { label: "Media", message: "Media" },
+  { label: "Technical", message: "Technical" },
+  { label: "Ushering", message: "Ushering" },
+  { label: "Welfare", message: "Welfare" },
+  { label: "VIP", message: "VIP" },
+  { label: "Prayer", message: "Prayer" },
+  { label: "Votage Act", message: "Votage_Act" },
+  { label: "Protocol", message: "Protocol" },
+  { label: "Sanitation", message: "Sanitation" },
+  { label: "Pastorate", message: "Pastorate" },
+  { label: "Digital Communication", message: "Digital_Communication" },
+  { label: "Others", message: "Others" },
+];
+const GENDER_ACTIONS: QuickAction[] = [
+  { label: "Male", message: "male" },
+  { label: "Female", message: "female" },
+];
+const MARITAL_STATUS_ACTIONS: QuickAction[] = [
+  { label: "Single", message: "single" },
+  { label: "Married", message: "married" },
+  { label: "Divorced", message: "divorced" },
+  { label: "Widowed", message: "widowed" },
 ];
 
 function normalizeMissingMemberReply(text: string) {
@@ -143,6 +172,86 @@ function isConnectTypePrompt(text: string) {
       normalized.includes("gatekeepers") &&
       (normalized.includes("koinonia") || normalized.includes("koinoinia")) &&
       normalized.includes("ekehuan"))
+  );
+}
+
+function isWorkerPrompt(text: string) {
+  const normalized = text.toLowerCase();
+  return normalized.includes("are you a worker") && normalized.includes("yes or no");
+}
+
+function isDepartmentPrompt(text: string) {
+  const normalized = text.toLowerCase();
+  return (
+    normalized.includes("choose your department") ||
+    (normalized.includes("department") &&
+      normalized.includes("rmg") &&
+      normalized.includes("media") &&
+      normalized.includes("technical") &&
+      normalized.includes("ushering") &&
+      normalized.includes("welfare") &&
+      normalized.includes("vip") &&
+      normalized.includes("prayer") &&
+      normalized.includes("protocol") &&
+      normalized.includes("sanitation") &&
+      normalized.includes("pastorate") &&
+      normalized.includes("others"))
+  );
+}
+
+function isGenderPrompt(text: string) {
+  const normalized = text.toLowerCase();
+  return normalized.includes("what is your gender") && normalized.includes("male or female");
+}
+
+function isMaritalStatusPrompt(text: string) {
+  const normalized = text.toLowerCase();
+  return (
+    normalized.includes("what is your marital status") &&
+    normalized.includes("single") &&
+    normalized.includes("married") &&
+    normalized.includes("divorced") &&
+    normalized.includes("widowed")
+  );
+}
+
+function ActionChips({
+  actions,
+  busy,
+  onSelect,
+}: {
+  actions: QuickAction[];
+  busy: boolean;
+  onSelect: (message: string) => void;
+}) {
+  return (
+    <div
+      style={{
+        marginTop: 6,
+        marginBottom: 2,
+        display: "flex",
+        gap: 8,
+        flexWrap: "wrap",
+      }}
+    >
+      {actions.map((action) => (
+        <button
+          key={action.label}
+          onClick={() => onSelect(action.message)}
+          disabled={busy}
+          style={{
+            padding: "8px 10px",
+            borderRadius: 999,
+            border: "1px solid #d1d5db",
+            background: busy ? "#f3f4f6" : "#fff",
+            fontSize: 12,
+            cursor: busy ? "not-allowed" : "pointer",
+          }}
+        >
+          {action.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -340,93 +449,31 @@ export default function ChatWidget({
                 </div>
 
                 {m.role === "ai" && isWelcomePrompt(m.text) && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      marginBottom: 2,
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {QUICK_ACTIONS.map((action) => (
-                      <button
-                        key={action.label}
-                        onClick={() => sendText(action.message)}
-                        disabled={busy}
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: 999,
-                          border: "1px solid #ddd",
-                          background: busy ? "#fafafa" : "#fff",
-                          fontSize: 12,
-                          cursor: busy ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
+                  <ActionChips actions={QUICK_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
                 )}
 
                 {m.role === "ai" && isServiceTypePrompt(m.text) && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      marginBottom: 2,
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {SERVICE_TYPE_ACTIONS.map((action) => (
-                      <button
-                        key={action.label}
-                        onClick={() => sendText(action.message)}
-                        disabled={busy}
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: 999,
-                          border: "1px solid #d1d5db",
-                          background: busy ? "#f3f4f6" : "#fff",
-                          fontSize: 12,
-                          cursor: busy ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
+                  <ActionChips actions={SERVICE_TYPE_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
+                )}
+
+                {m.role === "ai" && isWorkerPrompt(m.text) && (
+                  <ActionChips actions={WORKER_STATUS_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
+                )}
+
+                {m.role === "ai" && isDepartmentPrompt(m.text) && (
+                  <ActionChips actions={DEPARTMENT_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
+                )}
+
+                {m.role === "ai" && isGenderPrompt(m.text) && (
+                  <ActionChips actions={GENDER_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
+                )}
+
+                {m.role === "ai" && isMaritalStatusPrompt(m.text) && (
+                  <ActionChips actions={MARITAL_STATUS_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
                 )}
 
                 {m.role === "ai" && isConnectTypePrompt(m.text) && (
-                  <div
-                    style={{
-                      marginTop: 6,
-                      marginBottom: 2,
-                      display: "flex",
-                      gap: 8,
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    {CONNECT_TYPE_ACTIONS.map((action) => (
-                      <button
-                        key={action.label}
-                        onClick={() => sendText(action.message)}
-                        disabled={busy}
-                        style={{
-                          padding: "8px 10px",
-                          borderRadius: 999,
-                          border: "1px solid #d1d5db",
-                          background: busy ? "#f3f4f6" : "#fff",
-                          fontSize: 12,
-                          cursor: busy ? "not-allowed" : "pointer",
-                        }}
-                      >
-                        {action.label}
-                      </button>
-                    ))}
-                  </div>
+                  <ActionChips actions={CONNECT_TYPE_ACTIONS} busy={busy} onSelect={(message) => void sendText(message)} />
                 )}
               </div>
             ))}
