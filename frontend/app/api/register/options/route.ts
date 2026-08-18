@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/server/prisma";
-import { DEFAULT_CONNECT_OPTIONS, DEFAULT_SERVICE_OPTIONS } from "@/lib/server/constants";
+import {
+  DEFAULT_CONNECT_OPTIONS,
+  DEFAULT_SERVICE_OPTIONS,
+  normalizeConnectName,
+} from "@/lib/server/constants";
 
 export async function GET() {
   const [services, connectGroups] = await Promise.all([
@@ -25,7 +29,13 @@ export async function GET() {
     service_types: serviceTypes.length > 0 ? Array.from(new Set(serviceTypes)) : [...DEFAULT_SERVICE_OPTIONS],
     connect_groups:
       connectGroups.length > 0
-        ? Array.from(new Set(connectGroups.map((group: { name: string }) => group.name.trim()).filter(Boolean)))
+        ? Array.from(
+            new Set(
+              connectGroups
+                .map((group: { name: string }) => normalizeConnectName(group.name) ?? group.name.trim())
+                .filter(Boolean),
+            ),
+          )
         : [...DEFAULT_CONNECT_OPTIONS],
   });
 }

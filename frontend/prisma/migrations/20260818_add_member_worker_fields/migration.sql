@@ -1,0 +1,3 @@
+ALTER TABLE "members"
+ADD COLUMN "is_worker" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN "department" VARCHAR(120);

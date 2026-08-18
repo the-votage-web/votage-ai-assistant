@@ -1,7 +1,13 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { buildCheckinCode } from "@/lib/server/checkin-code";
-import { DEFAULT_SERVICE_OPTIONS, ServiceType } from "@/lib/server/constants";
+import {
+  DEFAULT_SERVICE_OPTIONS,
+  ServiceType,
+  isConnectCheckinDay,
+  normalizeConnectName,
+  normalizeDepartmentName,
+} from "@/lib/server/constants";
 import { findMemberByPhone, normalizePhoneForStorage } from "@/lib/server/phone";
 import { prisma, type PrismaTransactionClient } from "@/lib/server/prisma";
 import { rateLimit } from "@/lib/server/security";
@@ -15,6 +21,8 @@ type RegistrationPayload = {
   phone_number?: string;
   gender?: string;
   marital_status?: string;
+  is_worker?: boolean;
+  department?: string | null;
   service_type?: string;
   connect_name?: string | null;
 };
@@ -38,6 +46,15 @@ function hasPrismaErrorCode(error: unknown, code: string) {
 function currentServiceDate() {
   const now = new Date();
   return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function formatServiceDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }
 
 function trimRequired(value: unknown, field: string) {
@@ -81,7 +98,12 @@ function validatePayload(payload: RegistrationPayload) {
   const maritalStatus = trimRequired(payload.marital_status, "marital_status").toLowerCase();
   const serviceType = normalizeServiceType(trimRequired(payload.service_type, "service_type"));
   const connectName =
-    typeof payload.connect_name === "string" && payload.connect_name.trim() ? payload.connect_name.trim() : null;
+    typeof payload.connect_name === "string" && payload.connect_name.trim()
+      ? normalizeConnectName(payload.connect_name)
+      : null;
+  const isWorker = payload.is_worker === true;
+  const departmentInput = typeof payload.department === "string" ? payload.department.trim() : "";
+  const department = departmentInput ? normalizeDepartmentName(departmentInput) ?? departmentInput : null;
 
   if (!VALID_GENDERS.has(gender)) {
     throw new Error("gender must be one of: female, male");
@@ -89,8 +111,14 @@ function validatePayload(payload: RegistrationPayload) {
   if (!VALID_MARITAL_STATUSES.has(maritalStatus)) {
     throw new Error("marital_status must be one of: divorced, married, single, widowed");
   }
+  if (serviceType === "connect" && !isConnectCheckinDay()) {
+    throw new Error("Connect check-in is available from Tuesday to Saturday.");
+  }
   if (serviceType === "connect" && !connectName) {
-    throw new Error("connect_name is required when service_type is connect");
+    throw new Error("connect_name must be one of the allowed Connect options");
+  }
+  if (isWorker && !department) {
+    throw new Error("department is required when is_worker is true");
   }
 
   return {
@@ -100,6 +128,8 @@ function validatePayload(payload: RegistrationPayload) {
     phoneNumber,
     gender,
     maritalStatus,
+    isWorker,
+    department: isWorker ? department : null,
     serviceType,
     connectName: serviceType === "connect" ? connectName : null,
   };
@@ -169,6 +199,27 @@ async function getOrCreateConnectGroup(tx: TxClient, serviceId: string, connectN
   });
 }
 
+async function getOrCreateDepartment(tx: TxClient, departmentName: string) {
+  const existing = await tx.department.findFirst({
+    where: {
+      name: {
+        equals: departmentName,
+        mode: "insensitive",
+      },
+    },
+  });
+
+  if (existing) {
+    return existing;
+  }
+
+  return tx.department.create({
+    data: {
+      name: departmentName,
+    },
+  });
+}
+
 export async function POST(req: Request) {
   const limited = rateLimit(req, "register", 8, 15 * 60_000);
   if (limited) {
@@ -206,8 +257,13 @@ export async function POST(req: Request) {
 
   try {
     const serviceDate = currentServiceDate();
+    const serviceDateLabel = formatServiceDate(serviceDate);
     const created = await prisma.$transaction(async (tx: TxClient) => {
       const service = await getOrCreateService(tx, validated.serviceType);
+      const department =
+        validated.isWorker && validated.department
+          ? await getOrCreateDepartment(tx, validated.department)
+          : null;
       if (validated.serviceType === "connect" && validated.connectName) {
         await getOrCreateConnectGroup(tx, service.id, validated.connectName);
       }
@@ -220,6 +276,9 @@ export async function POST(req: Request) {
           phoneNumber: validated.phoneNumber,
           gender: validated.gender,
           maritalStatus: validated.maritalStatus,
+          isWorker: validated.isWorker,
+          department: validated.department,
+          departmentId: department?.id ?? null,
           firstTimer: true,
           connectName: validated.connectName,
         },
@@ -261,7 +320,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       ok: true,
-      message: `Registration completed successfully. Your check-in code is ${created.attendance.checkinCode}.`,
+      message: `Registration completed successfully for ${serviceDateLabel}. Your check-in code is ${created.attendance.checkinCode}.`,
       checkinCode: created.attendance.checkinCode,
     });
   } catch (error) {

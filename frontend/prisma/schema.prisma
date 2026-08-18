@@ -16,6 +16,9 @@ model Member {
   createdAt             DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
   gender                String?                 @db.VarChar(32)
   maritalStatus         String?                 @map("marital_status") @db.VarChar(32)
+  isWorker              Boolean                 @default(false) @map("is_worker")
+  department            String?                 @db.VarChar(120)
+  departmentId          String?                 @map("department_id") @db.Uuid
   address               String?                 @db.VarChar(255)
   dateOfBirth           DateTime?               @map("date_of_birth") @db.Date
   employmentStatus      String?                 @map("employment_status") @db.VarChar(32)
@@ -28,10 +31,20 @@ model Member {
   dateJoined            DateTime                @default(now()) @map("date_joined") @db.Timestamptz(6)
   birthday              String?                 @db.VarChar(4)
   attendances           Attendance[]
+  departmentRecord      Department?             @relation(fields: [departmentId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   connect_group_members connect_group_members[]
   firstTimerLogs        FirstTimerEvent[]
 
   @@map("members")
+}
+
+model Department {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String   @unique @db.VarChar(120)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  members   Member[]
+
+  @@map("department")
 }
 
 model Service {
