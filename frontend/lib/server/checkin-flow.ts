@@ -445,7 +445,10 @@ async function completeConnectCheckin(flow: FlowData) {
         if (typeof flow.department !== "undefined" && member.department !== flow.department) {
           updates.department = flow.department ?? null;
         }
-        if ((member.departmentId ?? null) !== (departmentRecord?.id ?? null)) {
+        if (
+          typeof flow.department !== "undefined" &&
+          (member.departmentId ?? null) !== (departmentRecord?.id ?? null)
+        ) {
           updates.departmentId = departmentRecord?.id ?? null;
         }
         if (flow.connectName && normalizeConnectName(member.connectName ?? "") !== flow.connectName) {
@@ -813,6 +816,29 @@ async function continueConnectFlow(sessionId: string, message: string, state: Se
       if (!email) {
         return "Please enter a valid email address.";
       }
+
+      const existingMember = await prisma.member.findFirst({
+        where: {
+          email: {
+            equals: email,
+            mode: "insensitive",
+          },
+        },
+        select: { id: true },
+      });
+      if (existingMember) {
+        const result = await completeConnectCheckin({
+          ...flow,
+          email,
+          memberId: existingMember.id,
+          isNewMember: false,
+          isWorker: undefined,
+          department: undefined,
+        });
+        await saveState(sessionId, result.reset ? {} : state);
+        return result.reply;
+      }
+
       await saveState(sessionId, {
         ...state,
         step: "new_gender",
