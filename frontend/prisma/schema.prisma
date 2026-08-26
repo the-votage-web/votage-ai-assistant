@@ -24,7 +24,7 @@ model Member {
   employmentStatus      String?                 @map("employment_status") @db.VarChar(32)
   heardAboutChurch      String?                 @map("heard_about_church") @db.VarChar(32)
   heardAboutChurchOther String?                 @map("heard_about_church_other") @db.VarChar(120)
-  purposeOfAttending    String?
+  purposeOfAttending    String?                 @map("purpose_of_attending")
   wouldLikeToBeMember   String?                 @map("would_like_to_be_member") @db.VarChar(16)
   firstTimer            Boolean                 @map("first_timer")
   connectName           String?                 @map("connect_name") @db.VarChar(80)

@@ -599,7 +599,9 @@ async function completeConnectCheckin(flow: FlowData) {
     };
   } catch (error) {
     if (hasPrismaErrorCode(error, "P2002")) {
-      const member = flow.memberId ? await prisma.member.findUnique({ where: { id: flow.memberId } }) : null;
+      const member = flow.memberId
+        ? await prisma.member.findUnique({ where: { id: flow.memberId }, select: { firstName: true } })
+        : null;
       const serviceDateLabel = formatServiceDate(currentServiceDate());
       return {
         reply: `You have already checked in for Connect on ${serviceDateLabel}${member ? `, ${member.firstName}` : ""}.`,
@@ -723,7 +725,9 @@ async function continueConnectFlow(sessionId: string, message: string, state: Se
       }
 
       if (!answer) {
-        const member = flow.memberId ? await prisma.member.findUnique({ where: { id: flow.memberId } }) : null;
+        const member = flow.memberId
+          ? await prisma.member.findUnique({ where: { id: flow.memberId }, select: { connectName: true } })
+          : null;
         const storedConnect = normalizeConnectName(member?.connectName ?? "");
         if (storedConnect) {
           const result = await completeConnectCheckin({
