@@ -1,0 +1,96 @@
+import { NextResponse } from "next/server";
+import { rateLimit } from "@/lib/server/security";
+import { prisma } from "@/lib/server/prisma";
+
+export async function POST(req: Request) {
+  const limited = rateLimit(req, "checkin_event", 15, 60_000);
+  if (limited) return limited;
+
+  let payload: any;
+  try {
+    payload = await req.json();
+  } catch {
+    return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
+  }
+
+  const { phone_number, event_name } = payload;
+  
+  if (!phone_number || typeof phone_number !== "string") {
+    return NextResponse.json({ detail: "phone_number is required and must be a string." }, { status: 422 });
+  }
+
+  const trimmedPhone = phone_number.trim();
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      let event;
+      if (event_name) {
+        event = await tx.events_event.findFirst({
+          where: {
+            OR: [
+              { slug: event_name },
+              { name: { equals: event_name, mode: "insensitive" } },
+            ],
+            is_active: true,
+          },
+          orderBy: { created_at: "desc" }
+        });
+      } else {
+        event = await tx.events_event.findFirst({
+          where: { is_active: true },
+          orderBy: { created_at: "desc" }
+        });
+      }
+
+      if (!event) {
+        return NextResponse.json({ detail: "No active event found to check in to." }, { status: 404 });
+      }
+
+      const participant = await tx.events_eventparticipation.findFirst({
+        where: {
+          event_id: event.id,
+          phone_number: trimmedPhone
+        }
+      });
+
+      if (!participant) {
+        return NextResponse.json({
+          error: "not_registered",
+          detail: `We couldn't find a registration with phone number ${trimmedPhone}. Please register for the event first.`
+        }, { status: 404 });
+      }
+
+      const today = new Date();
+      const todayDateStr = today.toISOString().split("T")[0];
+      const lastCheckinDateStr = participant.last_checkin_date 
+        ? participant.last_checkin_date.toISOString().split("T")[0] 
+        : null;
+
+      if (lastCheckinDateStr === todayDateStr) {
+        return NextResponse.json({
+          checked_in: true,
+          already_checked_in_today: true,
+          detail: `Welcome back, ${participant.participant_name}! You have already checked in today for ${event.name}.`
+        }, { status: 200 });
+      }
+
+      const updatedParticipant = await tx.events_eventparticipation.update({
+        where: { id: participant.id },
+        data: {
+          checked_in: true,
+          checked_in_at: new Date(),
+          last_checkin_date: new Date()
+        }
+      });
+
+      return NextResponse.json({
+        checked_in: true,
+        already_checked_in_today: false,
+        detail: `Check-in successful! Welcome to ${event.name}, ${updatedParticipant.participant_name}.`
+      }, { status: 200 });
+    });
+  } catch (error) {
+    console.error("Error during check-in:", error);
+    return NextResponse.json({ detail: "An internal error occurred." }, { status: 500 });
+  }
+}
