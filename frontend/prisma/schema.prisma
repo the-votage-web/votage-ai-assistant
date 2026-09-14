@@ -24,7 +24,7 @@ model Member {
   employmentStatus      String?                 @map("employment_status") @db.VarChar(32)
   heardAboutChurch      String?                 @map("heard_about_church") @db.VarChar(32)
   heardAboutChurchOther String?                 @map("heard_about_church_other") @db.VarChar(120)
-  purposeOfAttending    String?
+  purposeOfAttending    String?                 @map("purpose_of_attending")
   wouldLikeToBeMember   String?                 @map("would_like_to_be_member") @db.VarChar(16)
   firstTimer            Boolean                 @map("first_timer")
   connectName           String?                 @map("connect_name") @db.VarChar(80)
@@ -345,8 +345,14 @@ model events_event {
   event_type                String                      @db.VarChar(100)
   description               String
   created_at                DateTime                    @db.Timestamptz(6)
-  service_id                BigInt
-  services_service          services_service            @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_event_service_id_8a87164e_fk_services_service_id")
+  service_id                BigInt?
+  name                      String?                     @db.VarChar(150)
+  slug                      String?                     @unique @db.VarChar(150)
+  start_date                DateTime?                   @db.Timestamptz(6)
+  end_date                  DateTime?                   @db.Timestamptz(6)
+  location                  String?                     @db.VarChar(255)
+  is_active                 Boolean                     @default(true)
+  services_service          services_service?           @relation(fields: [service_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_event_service_id_8a87164e_fk_services_service_id")
   events_eventparticipation events_eventparticipation[]
 
   @@index([service_id], map: "events_event_service_id_8a87164e")
@@ -354,14 +360,26 @@ model events_event {
 
 /// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
 model events_eventparticipation {
-  id               BigInt          @id @default(autoincrement())
-  participant_name String          @db.VarChar(255)
-  role             String          @db.VarChar(100)
-  event_id         BigInt
-  member_id        BigInt?
-  members_member   members_member? @relation(fields: [member_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_eventparticip_member_id_54c55f51_fk_members_m")
-  events_event     events_event    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_eventparticipation_event_id_5543f4b9_fk_events_event_id")
+  id                BigInt          @id @default(autoincrement())
+  participant_name  String          @db.VarChar(255)
+  role              String          @db.VarChar(100)
+  event_id          BigInt
+  member_id         BigInt?
+  phone_number      String?         @db.VarChar(32)
+  email             String?         @db.VarChar(254)
+  address           String?         @db.VarChar(255)
+  city              String?         @db.VarChar(100)
+  state             String?         @db.VarChar(100)
+  country           String?         @db.VarChar(100)
+  checked_in        Boolean         @default(false)
+  checked_in_at     DateTime?       @db.Timestamptz(6)
+  last_checkin_date DateTime?       @db.Date
+  created_at        DateTime        @default(now()) @db.Timestamptz(6)
+  members_member    members_member? @relation(fields: [member_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_eventparticip_member_id_54c55f51_fk_members_m")
+  events_event      events_event    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_eventparticipation_event_id_5543f4b9_fk_events_event_id")
 
+  @@unique([event_id, phone_number], map: "unique_event_participant_phone")
+  @@unique([event_id, email], map: "unique_event_participant_email")
   @@index([event_id], map: "events_eventparticipation_event_id_5543f4b9")
   @@index([member_id], map: "events_eventparticipation_member_id_54c55f51")
 }
