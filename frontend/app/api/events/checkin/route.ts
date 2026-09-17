@@ -46,6 +46,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ detail: "No active event found to check in to." }, { status: 404 });
       }
 
+      const now = new Date();
+      if (event.end_date && now > event.end_date) {
+        return NextResponse.json({ detail: "This event has already ended." }, { status: 400 });
+      }
+
       const participant = await tx.events_eventparticipation.findFirst({
         where: {
           event_id: event.id,
@@ -60,33 +65,42 @@ export async function POST(req: Request) {
         }, { status: 404 });
       }
 
-      const today = new Date();
-      const todayDateStr = today.toISOString().split("T")[0];
-      const lastCheckinDateStr = participant.last_checkin_date 
-        ? participant.last_checkin_date.toISOString().split("T")[0] 
-        : null;
+      // Dynamic Code Generation
+      const initials = (event.name || "Event").split(/[\s-]+/).map(w => w[0]).join("").toUpperCase().substring(0, 3);
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+      const watTime = new Date(utcMs + (3600000 * 1));
+      const day = watTime.getDate().toString().padStart(2, "0");
+      const suffix = watTime.getHours() < 12 ? "M" : "E";
+      const sessionCode = `${initials}-${day}${suffix}`;
 
-      if (lastCheckinDateStr === todayDateStr) {
+      const attendedSessions = participant.attended_sessions || [];
+
+      if (attendedSessions.includes(sessionCode)) {
         return NextResponse.json({
           checked_in: true,
           already_checked_in_today: true,
-          detail: `Welcome back, ${participant.participant_name}! You have already checked in today for ${event.name}.`
+          session_code: sessionCode,
+          detail: `You have already checked in for this session. Your code is ${sessionCode}.`
         }, { status: 200 });
       }
+
+      const updatedSessions = [...attendedSessions, sessionCode];
 
       const updatedParticipant = await tx.events_eventparticipation.update({
         where: { id: participant.id },
         data: {
           checked_in: true,
-          checked_in_at: new Date(),
-          last_checkin_date: new Date()
+          checked_in_at: now,
+          last_checkin_date: now,
+          attended_sessions: updatedSessions
         }
       });
 
       return NextResponse.json({
         checked_in: true,
         already_checked_in_today: false,
-        detail: `Check-in successful! Welcome to ${event.name}, ${updatedParticipant.participant_name}.`
+        session_code: sessionCode,
+        detail: `Welcome, ${updatedParticipant.participant_name} to the ${event.name} ${sessionCode}.`
       }, { status: 200 });
     });
   } catch (error) {
