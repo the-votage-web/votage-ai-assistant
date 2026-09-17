@@ -31,8 +31,44 @@ frontend/.turbo/
 # Terraform
 infrastructure/terraform/.terraform/
 infrastructure/terraform/*.tfstate
+# env files
+.env
+backend/.env
+backend/.env.local
+frontend/.env
+frontend/.env.local
+
+# virtual env
+backend/.venv/
+backend/venv/
+
+
+# python cache
+__pycache__/
+backend/app/__pycache__/
+*.pyc
+
+# node
+node_modules/
+
+# local source documents (church PDFs/txt) — the content lives in faq.md instead
+backend/app/data/docs/
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Next.js
+frontend/.next/
+frontend/.turbo/
+
+# Terraform
+infrastructure/terraform/.terraform/
+infrastructure/terraform/*.tfstate
 infrastructure/terraform/*.tfstate.*
 infrastructure/terraform/*.tfvars
 
 # AI / Agent workspace instructions
 AGENTS.md
+
+.postman/
+postman/

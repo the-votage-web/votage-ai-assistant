@@ -366,11 +366,13 @@ model events_eventparticipation {
   event_id          BigInt
   member_id         BigInt?
   phone_number      String?         @db.VarChar(32)
-  email             String?         @db.VarChar(254)
   address           String?         @db.VarChar(255)
   city              String?         @db.VarChar(100)
   state             String?         @db.VarChar(100)
   country           String?         @db.VarChar(100)
+  state_country     String?         @db.VarChar(200)
+  heard_about_us    String?         @db.VarChar(120)
+  attended_sessions String[]        @default([])
   checked_in        Boolean         @default(false)
   checked_in_at     DateTime?       @db.Timestamptz(6)
   last_checkin_date DateTime?       @db.Date
@@ -379,7 +381,6 @@ model events_eventparticipation {
   events_event      events_event    @relation(fields: [event_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "events_eventparticipation_event_id_5543f4b9_fk_events_event_id")
 
   @@unique([event_id, phone_number], map: "unique_event_participant_phone")
-  @@unique([event_id, email], map: "unique_event_participant_email")
   @@index([event_id], map: "events_eventparticipation_event_id_5543f4b9")
   @@index([member_id], map: "events_eventparticipation_member_id_54c55f51")
 }

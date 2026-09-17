@@ -16,7 +16,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventNa
     return NextResponse.json({ detail: "Invalid JSON payload." }, { status: 400 });
   }
 
-  const { full_name, phone_number, email, city, state, country } = payload;
+  const { full_name, phone_number, state_country, heard_about_us } = payload;
   
   if (!full_name || typeof full_name !== "string") {
     return NextResponse.json({ detail: "full_name is required and must be a string." }, { status: 422 });
@@ -24,12 +24,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventNa
   if (!phone_number || typeof phone_number !== "string" || phone_number.trim().length < 11) {
     return NextResponse.json({ detail: "phone_number is required and must be at least 11 digits." }, { status: 422 });
   }
-  if (!email || typeof email !== "string") {
-    return NextResponse.json({ detail: "email is required and must be a string." }, { status: 422 });
-  }
 
   const trimmedPhone = phone_number.trim();
-  const trimmedEmail = email.trim().toLowerCase();
 
   try {
     return await prisma.$transaction(async (tx) => {
@@ -50,10 +46,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventNa
       const existing = await tx.events_eventparticipation.findFirst({
         where: {
           event_id: event.id,
-          OR: [
-            { phone_number: trimmedPhone },
-            { email: trimmedEmail }
-          ]
+          phone_number: trimmedPhone
         }
       });
 
@@ -65,20 +58,51 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventNa
         }, { status: 409 });
       }
 
+      let autoCheckedIn = false;
+      let sessionCode = "";
+      const attendedSessions: string[] = [];
+      const now = new Date();
+      
+      // Auto check-in if registering during the event
+      if (event.start_date && event.end_date) {
+        if (now >= event.start_date && now <= event.end_date) {
+          autoCheckedIn = true;
+          const initials = (event.name || "Event").split(/[\s-]+/).map(w => w[0]).join("").toUpperCase().substring(0, 3);
+          const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000);
+          const watTime = new Date(utcMs + (3600000 * 1));
+          const day = watTime.getDate().toString().padStart(2, "0");
+          const suffix = watTime.getHours() < 12 ? "M" : "E";
+          sessionCode = `${initials}-${day}${suffix}`;
+          attendedSessions.push(sessionCode);
+        }
+      }
+
       const participant = await tx.events_eventparticipation.create({
         data: {
           participant_name: full_name.trim(),
           role: "attendee",
           event_id: event.id,
           phone_number: trimmedPhone,
-          email: trimmedEmail,
-          city: city?.trim() || null,
-          state: state?.trim() || null,
-          country: country?.trim() || null,
-          checked_in: false,
-          created_at: new Date()
+          state_country: state_country?.trim() || null,
+          heard_about_us: heard_about_us?.trim() || null,
+          checked_in: autoCheckedIn,
+          checked_in_at: autoCheckedIn ? now : null,
+          last_checkin_date: autoCheckedIn ? now : null,
+          attended_sessions: attendedSessions,
+          created_at: now
         }
       });
+
+      if (autoCheckedIn) {
+        return NextResponse.json({
+          id: participant.id.toString(),
+          event_id: participant.event_id.toString(),
+          participant_name: participant.participant_name,
+          phone_number: participant.phone_number,
+          session_code: sessionCode,
+          detail: `Registration and check-in successful! Welcome to ${event.name}, ${participant.participant_name}. Your code is ${sessionCode}.`
+        }, { status: 201 });
+      }
 
       return NextResponse.json({
         id: participant.id.toString(),
