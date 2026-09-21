@@ -3,7 +3,7 @@ import { rateLimit } from "@/lib/server/security";
 import { prisma } from "@/lib/server/prisma";
 
 export async function POST(req: Request) {
-  const limited = rateLimit(req, "checkin_event", 15, 60_000);
+  const limited = rateLimit(req, "checkin_event", 100, 60_000);
   if (limited) return limited;
 
   let payload: any;
