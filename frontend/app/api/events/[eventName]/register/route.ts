@@ -6,7 +6,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventNa
   const resolvedParams = await params;
   const eventName = resolvedParams.eventName;
 
-  const limited = rateLimit(req, "register_event", 10, 60_000);
+  const limited = rateLimit(req, "register_event", 100, 60_000);
   if (limited) return limited;
 
   let payload: any;
