@@ -71,18 +71,44 @@ export async function POST(req: Request) {
       const watTime = new Date(utcMs + (3600000 * 1));
       const day = watTime.getDate().toString().padStart(2, "0");
       const suffix = watTime.getHours() < 12 ? "M" : "E";
-      const sessionCode = `${initials}-${day}${suffix}`;
+      const sessionPrefix = `${initials}-${day}${suffix}`;
 
       const attendedSessions = participant.attended_sessions || [];
 
-      if (attendedSessions.includes(sessionCode)) {
+      const existingSession = attendedSessions.find((s: string) => s === sessionPrefix || s.startsWith(`${sessionPrefix}-`));
+      if (existingSession) {
+        // If the existing session code is in the old format (without 6 random digits), upgrade it on the fly
+        if (existingSession === sessionPrefix) {
+          const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+          const upgradedSessionCode = `${sessionPrefix}-${randomDigits}`;
+          const upgradedSessions = attendedSessions.map((s: string) => s === sessionPrefix ? upgradedSessionCode : s);
+
+          await tx.events_eventparticipation.update({
+            where: { id: participant.id },
+            data: {
+              attended_sessions: upgradedSessions,
+              last_checkin_date: now
+            }
+          });
+
+          return NextResponse.json({
+            checked_in: true,
+            already_checked_in_today: true,
+            session_code: upgradedSessionCode,
+            detail: `You have already checked in for this session. Your code is ${upgradedSessionCode}.`
+          }, { status: 200 });
+        }
+
         return NextResponse.json({
           checked_in: true,
           already_checked_in_today: true,
-          session_code: sessionCode,
-          detail: `You have already checked in for this session. Your code is ${sessionCode}.`
+          session_code: existingSession,
+          detail: `You have already checked in for this session. Your code is ${existingSession}.`
         }, { status: 200 });
       }
+
+      const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+      const sessionCode = `${sessionPrefix}-${randomDigits}`;
 
       const updatedSessions = [...attendedSessions, sessionCode];
 
