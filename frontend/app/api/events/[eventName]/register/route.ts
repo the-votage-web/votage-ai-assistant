@@ -72,7 +72,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ eventNa
           const watTime = new Date(utcMs + (3600000 * 1));
           const day = watTime.getDate().toString().padStart(2, "0");
           const suffix = watTime.getHours() < 12 ? "M" : "E";
-          sessionCode = `${initials}-${day}${suffix}`;
+          const sessionPrefix = `${initials}-${day}${suffix}`;
+          const randomDigits = Math.floor(100000 + Math.random() * 900000).toString();
+          sessionCode = `${sessionPrefix}-${randomDigits}`;
           attendedSessions.push(sessionCode);
         }
       }
