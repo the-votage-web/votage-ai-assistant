@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { birthdayPrompt, formatStoredBirthday, parseBirthdayMessage } from "./birthday";
 import { buildCheckinCode } from "./checkin-code";
 import {
   DEFAULT_CONNECT_OPTIONS,
@@ -46,6 +47,8 @@ type SessionState = {
   pending_service_type?: ServiceType | null;
   step?: FlowStep;
   flow?: FlowData | null;
+  // Set after a successful check-in when the member has no birthday on file.
+  awaiting_birthday_member_id?: string;
 };
 
 function hasPrismaErrorCode(error: unknown, code: string) {
@@ -910,7 +913,7 @@ async function continueConnectFlow(sessionId: string, message: string, state: Se
   }
 }
 
-export async function handleCheckin(sessionId: string, message: string) {
+async function runCheckin(sessionId: string, message: string) {
   const session = await prisma.chatSession.upsert({
     where: { id: sessionId },
     update: {},
@@ -1003,4 +1006,74 @@ export async function handleCheckin(sessionId: string, message: string) {
     });
   }
   return reply;
+}
+
+const CHECKIN_SUCCESS_PATTERN = /attendance recorded|already checked in/i;
+const SKIP_BIRTHDAY_MESSAGES = new Set(["skip", "later", "not now", "no", "no thanks"]);
+
+async function handleBirthdayReply(sessionId: string, message: string, memberId: string) {
+  const normalized = message.toLowerCase().replace(/\s+/g, " ").trim();
+  if (SKIP_BIRTHDAY_MESSAGES.has(normalized)) {
+    await saveState(sessionId, {});
+    return "No problem — we'll ask again next time you check in.";
+  }
+
+  const stored = parseBirthdayMessage(message);
+  if (!stored) {
+    return "Sorry, I didn't catch that. Please enter your birthday (day and month), e.g. 15/03. You can also reply skip.";
+  }
+
+  await saveState(sessionId, {});
+  try {
+    const member = await prisma.member.update({
+      where: { id: memberId },
+      data: { birthday: stored },
+      select: { firstName: true },
+    });
+    return `Thank you, ${member.firstName}! We've saved your birthday as ${formatStoredBirthday(stored)}. 🎉`;
+  } catch (error) {
+    if (hasPrismaErrorCode(error, "P2025")) {
+      return "I couldn't find your member record to save your birthday. Please check in again.";
+    }
+    throw error;
+  }
+}
+
+export async function handleCheckin(sessionId: string, message: string) {
+  const session = await prisma.chatSession.upsert({
+    where: { id: sessionId },
+    update: {},
+    create: { id: sessionId, stateJson: "{}" },
+  });
+  const state = parseState(session.stateJson);
+
+  if (state.awaiting_birthday_member_id) {
+    if (isEndSessionMessage(message)) {
+      await saveState(sessionId, {});
+      return "Check-in session ended.";
+    }
+    // A phone number means someone new is checking in on this device: drop the
+    // pending birthday question and check them in instead.
+    if (!extractPhone(message)) {
+      return handleBirthdayReply(sessionId, message, state.awaiting_birthday_member_id);
+    }
+    await saveState(sessionId, {});
+    state.awaiting_birthday_member_id = undefined;
+  }
+
+  const checkinPhone = extractPhone(message) ?? state.pending_checkin_phone ?? state.flow?.phoneNumber ?? null;
+  const reply = await runCheckin(sessionId, message);
+
+  if (!checkinPhone || !CHECKIN_SUCCESS_PATTERN.test(reply)) {
+    return reply;
+  }
+
+  // Only ask members whose birthday is blank; members with one on file are never asked.
+  const member = await findMemberByPhone(checkinPhone);
+  if (!member || member.birthday?.trim()) {
+    return reply;
+  }
+
+  await saveState(sessionId, { awaiting_birthday_member_id: member.id });
+  return `${reply}\n\n${birthdayPrompt()}`;
 }

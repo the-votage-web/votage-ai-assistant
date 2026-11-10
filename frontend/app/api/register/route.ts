@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
+import { birthdayFromPayload } from "@/lib/server/birthday";
 import { buildCheckinCode } from "@/lib/server/checkin-code";
 import {
   DEFAULT_SERVICE_OPTIONS,
@@ -25,6 +26,8 @@ type RegistrationPayload = {
   department?: string | null;
   service_type?: string;
   connect_name?: string | null;
+  birth_day?: number | string | null;
+  birth_month?: number | string | null;
 };
 
 const VALID_GENDERS = new Set(["male", "female"]);
@@ -104,6 +107,8 @@ function validatePayload(payload: RegistrationPayload) {
   const isWorker = payload.is_worker === true;
   const departmentInput = typeof payload.department === "string" ? payload.department.trim() : "";
   const department = departmentInput ? normalizeDepartmentName(departmentInput) ?? departmentInput : null;
+  // Optional here so older clients keep working; members without one are asked at check-in.
+  const birthday = birthdayFromPayload(payload.birth_day, payload.birth_month);
 
   if (!VALID_GENDERS.has(gender)) {
     throw new Error("gender must be one of: female, male");
@@ -132,6 +137,7 @@ function validatePayload(payload: RegistrationPayload) {
     department: isWorker ? department : null,
     serviceType,
     connectName: serviceType === "connect" ? connectName : null,
+    birthday: birthday ?? null,
   };
 }
 
@@ -281,6 +287,7 @@ export async function POST(req: Request) {
           departmentId: department?.id ?? null,
           firstTimer: true,
           connectName: validated.connectName,
+          birthday: validated.birthday,
         },
         select: {
           id: true,
