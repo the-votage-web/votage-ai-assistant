@@ -12,6 +12,7 @@ const memberLookupSelect = {
   department: true,
   departmentId: true,
   connectName: true,
+  birthday: true,
 } as const;
 
 function digitsOnly(value: string) {
